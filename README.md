@@ -45,6 +45,7 @@ Switching between multiple Gmail / Google accounts on **Google Antigravity** can
 
 ### ✨ Features
 - ⚡️ **Instant 1-Click Switching**: Seamlessly swap between work, personal, or dev accounts.
+- 📊 **Claude-Style Usage Dashboard**: Real-time quota & session limits tracker displayed in Anthropic Claude's signature aesthetic (GUI window + Claude Code terminal box).
 - 🍏 **Universal macOS Support**: Native Universal 2 binary for **Apple Silicon (M1/M2/M3/M4)** and **Intel (x86_64)** with tactile sound effects and high-res icon.
 - 🪟 **Native Windows 10 & 11 Support**: Direct integration with Windows Credential Manager (`advapi32.dll`) via PowerShell and WinForms UI.
 - 🔒 **Zero Data Transmission**: Everything runs 100% locally on your machine. Tokens never leave your local credential store.
@@ -76,19 +77,22 @@ cd antigravity-account-switcher
 ### 🎮 Usage
 
 #### GUI Mode
-- **macOS**: Open **`AntigravitySwitcher.app`** from Applications, Desktop, or Spotlight (`Cmd+Space`).
+- **macOS**: Open **`AntigravitySwitcher.app`** from Applications, Desktop, or Spotlight (`Cmd+Space`). Select **`📊 View Usage & Limits (Claude Style)`**.
 - **Windows**: Double-click **`AntigravitySwitcher.bat`** on your Desktop.
 
 #### CLI Mode
 ```bash
 # macOS terminal:
-agy-switch --list
+agy-switch --usage            # 📊 Display live quota in Claude Code style
+agy-switch --usage-gui        # 🖥 Open standalone Claude usage desktop window
+agy-switch --list             # List saved accounts
 agy-switch --switch user@gmail.com
 agy-switch --save
 agy-switch --logout
 agy-switch --about
 
 # Windows PowerShell:
+powershell -File .\switcher_windows.ps1 -Usage   # 📊 Display live quota in Claude Code style
 powershell -File .\switcher_windows.ps1 -List
 powershell -File .\switcher_windows.ps1 -Switch user@gmail.com
 powershell -File .\switcher_windows.ps1 -Save
@@ -111,6 +115,7 @@ powershell -File .\switcher_windows.ps1 -About
 
 ### 🌟 ویژگی‌های کلیدی
 - ⚡️ **سوئیچ زیر ۳ ثانیه**: جابه‌جایی آنی بین اکانت‌های کاری و شخصی بدون نیاز به لاگین مجدد.
+- 📊 **نمایشگر مصرف به سبک Claude**: بررسی دقیق درصد مصرف سهمیه (Quota)، سشن جاری (Current session)، زمان بازنشانی (Reset Timer) و تفکیک مدل‌ها دقیقاً مطابق ظاهر نرم‌افزار و ترمینال Claude!
 - 🍏 **مک‌های سیلیکون و اینتل**: باینری دوگانه Universal 2 برای چیپ‌های سری M اپل و اینتل به همراه افکت صوتی و آیکون HD.
 - 🪟 **ویندوز ۱۰ و ۱۱**: پیاده‌سازی نیتیو با PowerShell و WinForms با اتصال به `advapi32.dll` بدون نیاز به نصب پیش‌نیاز.
 - 🔒 **امنیت ۱۰۰٪ آفلاین**: هیچ اطلاعاتی به هیچ سروری ارسال نمی‌شود؛ تمام داده‌ها به صورت امن در سیستم خودتان ذخیره می‌شوند.

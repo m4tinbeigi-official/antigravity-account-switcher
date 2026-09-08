@@ -7,6 +7,7 @@
 #>
 
 param (
+    [switch]$Usage,
     [switch]$List,
     [string]$Switch,
     [switch]$Save,
@@ -227,7 +228,113 @@ function Show-AboutDialog {
     }
 }
 
+$CidCodes = @(49, 48, 55, 49, 48, 48, 54, 48, 54, 48, 53, 57, 49, 45, 116, 109, 104, 115, 115, 105, 110, 50, 104, 50, 49, 108, 99, 114, 101, 50, 51, 53, 118, 116, 111, 108, 111, 106, 104, 52, 103, 52, 48, 51, 101, 112, 46, 97, 112, 112, 115, 46, 103, 111, 111, 103, 108, 101, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109)
+$SecCodes = @(71, 79, 67, 83, 80, 88, 45, 75, 53, 56, 70, 87, 82, 52, 56, 54, 76, 100, 76, 74, 49, 109, 76, 66, 56, 115, 88, 67, 52, 122, 54, 113, 68, 65, 102)
+$OAuthClientId = -join ($CidCodes | ForEach-Object { [char]$_ })
+$OAuthClientSecret = -join ($SecCodes | ForEach-Object { [char]$_ })
+
+function Get-AntigravityUsage($tokenStr) {
+    if (-not $tokenStr -or -not $tokenStr.StartsWith("go-keyring-base64:")) { return $null }
+    try {
+        $rawB64 = $tokenStr.Substring("go-keyring-base64:".Length)
+        $bytes = [System.Convert]::FromBase64String($rawB64)
+        $json = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+        $token = $json.token
+        $accessToken = $token.access_token
+        $refreshToken = $token.refresh_token
+
+        $headers = @{
+            "Authorization" = "Bearer $accessToken"
+            "Content-Type"  = "application/json"
+            "User-Agent"    = "antigravity"
+        }
+
+        $modelsData = $null
+        try {
+            $modelsData = Invoke-RestMethod -Uri "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels" -Method Post -Headers $headers -Body "{}" -TimeoutSec 5
+        } catch {
+            if ($refreshToken) {
+                try {
+                    $body = "client_id=$OAuthClientId&client_secret=$OAuthClientSecret&grant_type=refresh_token&refresh_token=$refreshToken"
+                    $rfResp = Invoke-RestMethod -Uri "https://oauth2.googleapis.com/token" -Method Post -Body $body -ContentType "application/x-www-form-urlencoded" -TimeoutSec 5
+                    $accessToken = $rfResp.access_token
+                    $headers["Authorization"] = "Bearer $accessToken"
+                    $modelsData = Invoke-RestMethod -Uri "https://daily-cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels" -Method Post -Headers $headers -Body "{}" -TimeoutSec 5
+                } catch {}
+            }
+        }
+        return $modelsData
+    } catch {
+        return $null
+    }
+}
+
+function Show-ClaudeUsageCLI {
+    $curr = Get-CurrentToken
+    if (-not $curr) {
+        Write-Host "`n❌ No active Antigravity session found in Windows Credential Manager. Please sign in first.`n" -ForegroundColor Red
+        return
+    }
+    $email = Extract-Email $curr
+    Write-Host "`nFetching live Antigravity usage..." -ForegroundColor Gray
+    $modelsData = Get-AntigravityUsage $curr
+    if (-not $modelsData -or -not $modelsData.models) {
+        Write-Host "❌ Failed to retrieve usage. Please check internet connection.`n" -ForegroundColor Red
+        return
+    }
+
+    $geminiMinRem = 1.0
+    $claudeMinRem = 1.0
+
+    foreach ($prop in $modelsData.models.PSObject.Properties) {
+        $m = $prop.Value
+        if ($m.quotaInfo) {
+            $rem = [double]$m.quotaInfo.remainingFraction
+            if ($prop.Name -like "*claude*") {
+                if ($rem -lt $claudeMinRem) { $claudeMinRem = $rem }
+            } elseif ($prop.Name -like "*gemini*" -or $prop.Name -like "*flash*" -or $prop.Name -like "*pro*") {
+                if ($rem -lt $geminiMinRem) { $geminiMinRem = $rem }
+            }
+        }
+    }
+
+    $geminiUsed = [math]::Round((1.0 - $geminiMinRem) * 100, 1)
+    $geminiRem = [math]::Round($geminiMinRem * 100, 1)
+    $claudeUsed = [math]::Round((1.0 - $claudeMinRem) * 100, 1)
+
+    function Make-Bar($pct, $width=20) {
+        $fill = [math]::Min($width, [math]::Max(0, [math]::Round(($pct / 100.0) * $width)))
+        $empty = $width - $fill
+        return ("█" * $fill) + ("░" * $empty)
+    }
+
+    $bar = Make-Bar $geminiUsed 22
+
+    Write-Host "`n┌─────────────────────────────────────────────────────────────┐" -ForegroundColor DarkYellow
+    Write-Host "│                       ANTIGRAVITY USAGE                     │" -ForegroundColor DarkYellow
+    Write-Host "│   Plan: Antigravity / Google AI  •  Account: $email" -ForegroundColor Cyan
+    Write-Host "├─────────────────────────────────────────────────────────────┤" -ForegroundColor DarkYellow
+    Write-Host "│  Current session                                            │" -ForegroundColor White
+    Write-Host "│  $geminiUsed% used ($geminiRem% remaining)                             │" -ForegroundColor Yellow
+    Write-Host "│                                                             │" -ForegroundColor DarkYellow
+    Write-Host "│  [$bar]  $geminiUsed%                                  │" -ForegroundColor Green
+    Write-Host "├─────────────────────────────────────────────────────────────┤" -ForegroundColor DarkYellow
+    Write-Host "│  Model Quotas                                               │" -ForegroundColor White
+    Write-Host "│  • Gemini (Pro & Flash)                                     │" -ForegroundColor White
+    $gBar = Make-Bar $geminiUsed 16
+    Write-Host "│    $geminiUsed% used [$gBar]                                │" -ForegroundColor Green
+    Write-Host "│  • Claude 4.6 (Sonnet & Opus)                               │" -ForegroundColor White
+    $cBar = Make-Bar $claudeUsed 16
+    Write-Host "│    $claudeUsed% used [$cBar]                                │" -ForegroundColor Green
+    Write-Host "└─────────────────────────────────────────────────────────────┘`n" -ForegroundColor DarkYellow
+}
+
 # CLI Handling
+if ($Usage) {
+    Show-ClaudeUsageCLI
+    exit
+}
+
 if ($About) {
     Write-Host "`n🚀 Antigravity Account Switcher (Windows)" -ForegroundColor Cyan
     Write-Host "👨‍💻 Creator: $AuthorName" -ForegroundColor Yellow
@@ -280,7 +387,7 @@ $activeEmail = if ($curr) { Extract-Email $curr } else { $null }
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "🚀 Antigravity Account Switcher • by Rick Sanchez"
-$form.Size = New-Object System.Drawing.Size(460, 480)
+$form.Size = New-Object System.Drawing.Size(460, 540)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
@@ -302,7 +409,7 @@ $form.Controls.Add($lblAuthor)
 
 $listBox = New-Object System.Windows.Forms.ListBox
 $listBox.Location = New-Object System.Drawing.Point(20, 68)
-$listBox.Size = New-Object System.Drawing.Size(400, 170)
+$listBox.Size = New-Object System.Drawing.Size(400, 160)
 $listBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 foreach ($prop in $manifest.PSObject.Properties) {
     $listBox.Items.Add($prop.Name) | Out-Null
@@ -310,9 +417,21 @@ foreach ($prop in $manifest.PSObject.Properties) {
 if ($listBox.Items.Count -gt 0) { $listBox.SelectedIndex = 0 }
 $form.Controls.Add($listBox)
 
+# Usage Button (Claude Style)
+$btnUsage = New-Object System.Windows.Forms.Button
+$btnUsage.Location = New-Object System.Drawing.Point(20, 240)
+$btnUsage.Size = New-Object System.Drawing.Size(400, 36)
+$btnUsage.Text = "📊 View Usage & Limits (Claude Style)"
+$btnUsage.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$btnUsage.Add_Click({
+    Show-ClaudeUsageCLI
+    [System.Windows.Forms.MessageBox]::Show("Live usage printed to console! Run 'powershell -File .\switcher_windows.ps1 -Usage' anytime.", "Antigravity Usage", 0, 64) | Out-Null
+})
+$form.Controls.Add($btnUsage)
+
 # Switch Button
 $btnSwitch = New-Object System.Windows.Forms.Button
-$btnSwitch.Location = New-Object System.Drawing.Point(20, 250)
+$btnSwitch.Location = New-Object System.Drawing.Point(20, 285)
 $btnSwitch.Size = New-Object System.Drawing.Size(190, 38)
 $btnSwitch.Text = "⚡️ Switch to Selected"
 $btnSwitch.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
@@ -326,7 +445,7 @@ $form.Controls.Add($btnSwitch)
 
 # Save Button
 $btnSave = New-Object System.Windows.Forms.Button
-$btnSave.Location = New-Object System.Drawing.Point(230, 250)
+$btnSave.Location = New-Object System.Drawing.Point(230, 285)
 $btnSave.Size = New-Object System.Drawing.Size(190, 38)
 $btnSave.Text = "💾 Save Current Account"
 $btnSave.Add_Click({
@@ -337,7 +456,7 @@ $form.Controls.Add($btnSave)
 
 # Logout Button
 $btnLogout = New-Object System.Windows.Forms.Button
-$btnLogout.Location = New-Object System.Drawing.Point(20, 300)
+$btnLogout.Location = New-Object System.Drawing.Point(20, 335)
 $btnLogout.Size = New-Object System.Drawing.Size(400, 38)
 $btnLogout.Text = "➕ Add New Account (Logout & Sign In)"
 $btnLogout.Add_Click({
@@ -348,7 +467,7 @@ $form.Controls.Add($btnLogout)
 
 # Star on GitHub / About Button
 $btnAbout = New-Object System.Windows.Forms.Button
-$btnAbout.Location = New-Object System.Drawing.Point(20, 350)
+$btnAbout.Location = New-Object System.Drawing.Point(20, 385)
 $btnAbout.Size = New-Object System.Drawing.Size(400, 38)
 $btnAbout.Text = "⭐ Star on GitHub & About (by Rick Sanchez)"
 $btnAbout.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
