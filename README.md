@@ -4,16 +4,28 @@
 
 **Super-fast, seamless 1-click Google account switcher for Google Antigravity on macOS (Intel & Apple Silicon) and Windows.**
 
+Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official)**
+
 [![macOS](https://img.shields.io/badge/Platform-macOS%20(Intel%20%7C%20Apple%20Silicon)-black?logo=apple&style=for-the-badge)](https://apple.com)
 [![Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&style=for-the-badge)](https://microsoft.com)
 [![Website](https://img.shields.io/badge/Website-GitHub%20Pages-0969da?style=for-the-badge)](https://m4tinbeigi-official.github.io/antigravity-account-switcher/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+[![GitHub Star](https://img.shields.io/badge/Support-Give%20a%20⭐%20Star-yellow.svg?style=for-the-badge)](https://github.com/m4tinbeigi-official/antigravity-account-switcher)
 
 [🌐 Live Website & Docs](https://m4tinbeigi-official.github.io/antigravity-account-switcher/) • [English](#-english) • [فارسی](#-فارسی)
 
 ---
 
 </div>
+
+## 👨‍💻 Creator & Author
+- **Author**: Rick Sanchez
+- **GitHub Profile**: [@m4tinbeigi-official](https://github.com/m4tinbeigi-official)
+- **Repository**: [github.com/m4tinbeigi-official/antigravity-account-switcher](https://github.com/m4tinbeigi-official/antigravity-account-switcher)
+
+⭐ **If you find this tool helpful, please star the repository to support further open-source development!**
+
+---
 
 ## 🇬🇧 English
 
@@ -65,17 +77,23 @@ agy-switch --list
 agy-switch --switch user@gmail.com
 agy-switch --save
 agy-switch --logout
+agy-switch --about
 
 # Windows PowerShell:
 powershell -File .\switcher_windows.ps1 -List
 powershell -File .\switcher_windows.ps1 -Switch user@gmail.com
 powershell -File .\switcher_windows.ps1 -Save
 powershell -File .\switcher_windows.ps1 -Logout
+powershell -File .\switcher_windows.ps1 -About
 ```
 
 ---
 
 ## 🇮🇷 فارسی
+
+### درباره سازنده
+این ابزار توسط **[ریک سانچز (Rick Sanchez)](https://github.com/m4tinbeigi-official)** برای جامعه توسعه‌دهندگان و کاربران Google Antigravity به صورت کاملاً آزاد و متن‌باز (Open Source) توسعه داده شده است.
+اگر این ابزار براتون کاربردی بود، لطفاً با **[دادن ستاره (Star ⭐) در گیت‌هاب](https://github.com/m4tinbeigi-official/antigravity-account-switcher)** از این پروژه حمایت کنید!
 
 ### معرفی
 تغییر اکانت‌های گوگل در نرم‌افزار **Google Antigravity** به دلیل ذخیره‌سازی رمزنگاری‌شده در **macOS Keychain** و **Windows Credential Manager** پیچیده است.

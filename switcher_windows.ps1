@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
     Antigravity Account Switcher for Windows 10 & 11
+    Created by Rick Sanchez (https://github.com/m4tinbeigi-official)
     Seamless 1-click Google account switcher for Google Antigravity.
     Communicates directly with Windows Credential Manager (advapi32.dll).
 #>
@@ -9,8 +10,13 @@ param (
     [switch]$List,
     [string]$Switch,
     [switch]$Save,
-    [switch]$Logout
+    [switch]$Logout,
+    [switch]$About,
+    [switch]$GitHub
 )
+
+$GitHubRepoUrl = "https://github.com/m4tinbeigi-official/antigravity-account-switcher"
+$AuthorName = "Rick Sanchez (@m4tinbeigi-official)"
 
 # -------------------------------------------------------------
 # C# Native Windows Credential Manager Interop
@@ -57,7 +63,6 @@ if (-not ([System.Management.Automation.PSTypeName]'WinCred').Type) {
                 CREDENTIAL cred = (CREDENTIAL)Marshal.PtrToStructure(credPtr, typeof(CREDENTIAL));
                 byte[] bytes = new byte[cred.CredentialBlobSize];
                 Marshal.Copy(cred.CredentialBlob, bytes, 0, cred.CredentialBlobSize);
-                // Try UTF8 first, fallback to Unicode
                 string utf8 = Encoding.UTF8.GetString(bytes);
                 if (utf8.StartsWith("go-keyring-base64:")) return utf8;
                 return Encoding.Unicode.GetString(bytes);
@@ -72,12 +77,12 @@ if (-not ([System.Management.Automation.PSTypeName]'WinCred').Type) {
             try {
                 Marshal.Copy(bytes, 0, secretPtr, bytes.Length);
                 CREDENTIAL cred = new CREDENTIAL();
-                cred.Type = 1; // CRED_TYPE_GENERIC
+                cred.Type = 1;
                 cred.TargetName = target;
                 cred.UserName = username;
                 cred.CredentialBlob = secretPtr;
                 cred.CredentialBlobSize = bytes.Length;
-                cred.Persist = 2; // CRED_PERSIST_LOCAL_MACHINE
+                cred.Persist = 2;
                 return CredWrite(ref cred, 0);
             } finally {
                 Marshal.FreeHGlobal(secretPtr);
@@ -140,7 +145,6 @@ function Restart-Antigravity {
     Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 1
     
-    # Locate Antigravity.exe
     $paths = @(
         "$env:LOCALAPPDATA\Programs\Antigravity\Antigravity.exe",
         "$env:ProgramFiles\Antigravity\Antigravity.exe",
@@ -170,7 +174,7 @@ function Switch-Account($accountKey) {
     $ok = [WinCred]::Write("gemini", "antigravity", $token.Trim())
     if ($ok) {
         Restart-Antigravity
-        [System.Windows.Forms.MessageBox]::Show("Successfully switched to $accountKey!", "Antigravity Switcher", 0, 64) | Out-Null
+        [System.Windows.Forms.MessageBox]::Show("Successfully switched to $accountKey!`n`nCreated by Rick Sanchez", "Antigravity Switcher", 0, 64) | Out-Null
     } else {
         [System.Windows.Forms.MessageBox]::Show("Failed to write to Windows Credential Manager.", "Error", 0, 16) | Out-Null
     }
@@ -215,11 +219,32 @@ function Logout-And-Add {
     [System.Windows.Forms.MessageBox]::Show("Logged out from Antigravity!`n`nAntigravity is reopening. Sign in with your other Gmail, then run Switcher again to save it!", "Notice", 0, 64) | Out-Null
 }
 
+function Show-AboutDialog {
+    $msg = "🚀 Antigravity Account Switcher`n`n👨‍💻 Creator: $AuthorName`n🌐 GitHub: $GitHubRepoUrl`n`nWould you like to open the GitHub repository to give it a ⭐ Star?"
+    $ans = [System.Windows.Forms.MessageBox]::Show($msg, "About Antigravity Switcher", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Information)
+    if ($ans -eq [System.Windows.Forms.DialogResult]::Yes) {
+        Start-Process $GitHubRepoUrl
+    }
+}
+
 # CLI Handling
+if ($About) {
+    Write-Host "`n🚀 Antigravity Account Switcher (Windows)" -ForegroundColor Cyan
+    Write-Host "👨‍💻 Creator: $AuthorName" -ForegroundColor Yellow
+    Write-Host "⭐ Star on GitHub: $GitHubRepoUrl`n" -ForegroundColor White
+    exit
+}
+
+if ($GitHub) {
+    Start-Process $GitHubRepoUrl
+    exit
+}
+
 if ($List) {
     $manifest = Get-Manifest
     $curr = Get-CurrentToken
-    Write-Host "`nAntigravity Accounts (Windows):" -ForegroundColor Green
+    Write-Host "`n🚀 Antigravity Accounts (Windows)" -ForegroundColor Green
+    Write-Host "👨‍💻 Creator: $AuthorName ($GitHubRepoUrl)`n" -ForegroundColor Gray
     foreach ($prop in $manifest.PSObject.Properties) {
         $active = ""
         $tf = $prop.Value.token_file
@@ -247,29 +272,37 @@ if ($Logout) {
     exit
 }
 
-# Interactive GUI Menu
+# Interactive WinForms GUI Menu
 Add-Type -AssemblyName System.Windows.Forms
 $manifest = Get-Manifest
 $curr = Get-CurrentToken
 $activeEmail = if ($curr) { Extract-Email $curr } else { $null }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = "🚀 Antigravity Account Switcher (Windows)"
-$form.Size = New-Object System.Drawing.Size(460, 420)
+$form.Text = "🚀 Antigravity Account Switcher • by Rick Sanchez"
+$form.Size = New-Object System.Drawing.Size(460, 480)
 $form.StartPosition = "CenterScreen"
 $form.FormBorderStyle = "FixedDialog"
 $form.MaximizeBox = $false
 
 $lbl = New-Object System.Windows.Forms.Label
 $lbl.Location = New-Object System.Drawing.Point(20, 15)
-$lbl.Size = New-Object System.Drawing.Size(400, 30)
+$lbl.Size = New-Object System.Drawing.Size(400, 24)
 $lbl.Text = "Active Account: $(if ($activeEmail) { $activeEmail } else { 'Not Signed In' })"
 $lbl.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
 $form.Controls.Add($lbl)
 
+$lblAuthor = New-Object System.Windows.Forms.Label
+$lblAuthor.Location = New-Object System.Drawing.Point(20, 40)
+$lblAuthor.Size = New-Object System.Drawing.Size(400, 18)
+$lblAuthor.Text = "Created by Rick Sanchez • Windows 10/11 Edition"
+$lblAuthor.Font = New-Object System.Drawing.Font("Segoe UI", 8.5, [System.Drawing.FontStyle]::Italic)
+$lblAuthor.ForeColor = [System.Drawing.Color]::Gray
+$form.Controls.Add($lblAuthor)
+
 $listBox = New-Object System.Windows.Forms.ListBox
-$listBox.Location = New-Object System.Drawing.Point(20, 55)
-$listBox.Size = New-Object System.Drawing.Size(400, 180)
+$listBox.Location = New-Object System.Drawing.Point(20, 68)
+$listBox.Size = New-Object System.Drawing.Size(400, 170)
 $listBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
 foreach ($prop in $manifest.PSObject.Properties) {
     $listBox.Items.Add($prop.Name) | Out-Null
@@ -304,7 +337,7 @@ $form.Controls.Add($btnSave)
 
 # Logout Button
 $btnLogout = New-Object System.Windows.Forms.Button
-$btnLogout.Location = New-Object System.Drawing.Point(20, 305)
+$btnLogout.Location = New-Object System.Drawing.Point(20, 300)
 $btnLogout.Size = New-Object System.Drawing.Size(400, 38)
 $btnLogout.Text = "➕ Add New Account (Logout & Sign In)"
 $btnLogout.Add_Click({
@@ -312,5 +345,16 @@ $btnLogout.Add_Click({
     Logout-And-Add
 })
 $form.Controls.Add($btnLogout)
+
+# Star on GitHub / About Button
+$btnAbout = New-Object System.Windows.Forms.Button
+$btnAbout.Location = New-Object System.Drawing.Point(20, 350)
+$btnAbout.Size = New-Object System.Drawing.Size(400, 38)
+$btnAbout.Text = "⭐ Star on GitHub & About (by Rick Sanchez)"
+$btnAbout.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$btnAbout.Add_Click({
+    Show-AboutDialog
+})
+$form.Controls.Add($btnAbout)
 
 $form.ShowDialog() | Out-Null

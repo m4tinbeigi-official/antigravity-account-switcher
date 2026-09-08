@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Antigravity Account Switcher
+Created by Rick Sanchez (https://github.com/m4tinbeigi-official)
 Universal (Apple Silicon & Intel) 1-click Google account switcher for Google Antigravity on macOS.
 Interacts directly with macOS Keychain (service: 'gemini', account: 'antigravity').
 """
@@ -17,6 +18,8 @@ import platform
 
 ACCOUNTS_DIR = os.path.expanduser('~/.gemini/accounts')
 MANIFEST_PATH = os.path.join(ACCOUNTS_DIR, 'manifest.json')
+GITHUB_REPO_URL = "https://github.com/m4tinbeigi-official/antigravity-account-switcher"
+AUTHOR_NAME = "Rick Sanchez (@m4tinbeigi-official)"
 
 def get_arch_label():
     m = platform.machine()
@@ -47,6 +50,24 @@ def notify(msg, title="Antigravity Switcher", sound=True):
     if sound:
         play_sound("Hero")
     osascript(f'display notification "{msg}" with title "{title}"')
+
+def open_github():
+    """Open GitHub repository in default browser."""
+    run_cmd(['open', GITHUB_REPO_URL])
+
+def show_about():
+    """Display Creator and GitHub info dialog."""
+    play_sound("Glass")
+    as_script = f'''
+    tell application "System Events"
+        activate
+        set res to display dialog "🚀 Antigravity Account Switcher\\n\\n👨‍💻 Creator: {AUTHOR_NAME}\\n🌐 GitHub: {GITHUB_REPO_URL}\\n\\nIf you love this tool, please consider giving it a ⭐ Star on GitHub!" buttons {{"Close", "⭐ Open GitHub & Star"}} default button 2 with icon note
+        return button returned of res
+    end tell
+    '''
+    res = osascript(as_script)
+    if "Open GitHub" in res:
+        open_github()
 
 def get_current_keychain_token():
     """Retrieve raw base64 Go-keyring string from macOS Keychain."""
@@ -206,10 +227,12 @@ def main_menu():
     items.append("➕ Add New Gmail (Logout & Sign In)")
     if manifest:
         items.append("🗑 Remove a Saved Account")
+    items.append("─────────────────────────────")
+    items.append("⭐ About & Star on GitHub (by Rick Sanchez)")
         
     items_applescript = '{' + ', '.join([f'"{it}"' for it in items]) + '}'
     arch_info = get_arch_label()
-    prompt = f"🚀 Antigravity Account Switcher\\n{arch_info}\\n🟢 Active Account: {curr_display}\\n\\nChoose an action:"
+    prompt = f"🚀 Antigravity Account Switcher\\n{arch_info} • by Rick Sanchez\\n🟢 Active Account: {curr_display}\\n\\nChoose an action:"
     as_script = f'''
     tell application "System Events"
         activate
@@ -235,6 +258,8 @@ def main_menu():
         save_current_account()
     elif choice.startswith("➕ Add New Gmail"):
         logout_and_add_account()
+    elif choice.startswith("⭐ About"):
+        show_about()
     elif choice.startswith("🗑 Remove a Saved Account"):
         del_items = '{' + ', '.join([f'"{k}"' for k in manifest.keys()]) + '}'
         del_choice = osascript(f'''
@@ -261,17 +286,20 @@ def main_menu():
             notify(f"Removed account {del_choice}", sound=False)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Antigravity Account Switcher (Universal: Apple Silicon & Intel)")
+    parser = argparse.ArgumentParser(description=f"Antigravity Account Switcher by {AUTHOR_NAME}")
     parser.add_argument('--list', action='store_true', help="List saved accounts")
     parser.add_argument('--switch', type=str, help="Switch to specific account")
     parser.add_argument('--save', nargs='?', const='', help="Save current account with optional name")
     parser.add_argument('--logout', action='store_true', help="Log out from current account")
+    parser.add_argument('--github', action='store_true', help="Open GitHub project page")
+    parser.add_argument('--about', action='store_true', help="Display creator & project info")
     args = parser.parse_args()
 
     if args.list:
         m = load_manifest()
         curr = get_current_keychain_token()
-        print(f"\nAntigravity Accounts [{get_arch_label()}]:")
+        print(f"\n🚀 Antigravity Accounts [{get_arch_label()}]")
+        print(f"👨‍💻 Created by Rick Sanchez ({GITHUB_REPO_URL})\n")
         for k, v in m.items():
             active = ""
             tf = v.get('token_file')
@@ -285,5 +313,9 @@ if __name__ == '__main__':
         save_current_account(args.save if args.save else None)
     elif args.logout:
         logout_and_add_account()
+    elif args.github:
+        open_github()
+    elif args.about:
+        show_about()
     else:
         main_menu()
