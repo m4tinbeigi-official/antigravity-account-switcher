@@ -136,7 +136,7 @@
     /* Hero Section */
     .hero {
       text-align: center;
-      margin-bottom: 60px;
+      margin-bottom: 50px;
     }
 
     .creator-badge {
@@ -173,6 +173,43 @@
       color: var(--text-muted);
       max-width: 720px;
       margin: 0 auto 36px;
+    }
+
+    /* Showcase Banner & Screenshot */
+    .showcase-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 30px;
+      margin-bottom: 60px;
+    }
+
+    .promo-img {
+      width: 100%;
+      max-width: 840px;
+      border-radius: 18px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      border: 1px solid var(--card-border);
+      transition: transform 0.3s ease;
+    }
+    .promo-img:hover {
+      transform: scale(1.01);
+    }
+
+    .screenshot-frame {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--card-border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+      max-width: 520px;
+      width: 100%;
+    }
+
+    .screenshot-frame img {
+      width: 100%;
+      border-radius: 12px;
+      display: block;
     }
 
     /* OS Tabs */
@@ -352,6 +389,13 @@
         <p class="lead">
           ابزار کاملاً نیتیو، امن و خودکار برای جابه‌جایی سریع و بی‌دردسر بین اکانت‌های کاری و شخصی در مک (Apple Silicon & Intel) و ویندوز.
         </p>
+      </section>
+
+      <section class="showcase-area">
+        <img src="assets/promo_banner.jpg" alt="Antigravity Account Switcher Banner" class="promo-img">
+        <div class="screenshot-frame">
+          <img src="assets/screenshot.png" alt="محیط برنامه Antigravity Switcher">
+        </div>
       </section>
 
       <section class="tabs-wrapper">

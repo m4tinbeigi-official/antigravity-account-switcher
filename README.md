@@ -14,9 +14,18 @@ Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official
 
 [🌐 Live Website & Docs](https://m4tinbeigi-official.github.io/antigravity-account-switcher/) • [English](#-english) • [فارسی](#-فارسی)
 
----
+<br/>
+
+<img src="assets/promo_banner.jpg" alt="Antigravity Account Switcher Banner" width="820" style="border-radius: 16px; box-shadow: 0 12px 36px rgba(0,0,0,0.6);" />
+
+<br/><br/>
+
+### 📸 Application Interface
+<img src="assets/screenshot.png" alt="Antigravity Account Switcher Interface" width="520" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15);" />
 
 </div>
+
+---
 
 ## 👨‍💻 Creator & Author
 - **Author**: Rick Sanchez
