@@ -1,0 +1,29 @@
+# Secrets and Credentials (NEVER COMMIT)
+*.token
+*.key
+*.pem
+manifest.json
+accounts/
+oauth_creds.json
+google_accounts.json
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# App build cache
+*.tmp
+*.log
