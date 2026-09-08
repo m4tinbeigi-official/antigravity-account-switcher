@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Antigravity Account Switcher
-Fast, seamless 1-click Google account switcher for Google Antigravity on macOS.
+Universal (Apple Silicon & Intel) 1-click Google account switcher for Google Antigravity on macOS.
 Interacts directly with macOS Keychain (service: 'gemini', account: 'antigravity').
 """
 
@@ -13,9 +13,18 @@ import subprocess
 import urllib.request
 import time
 import argparse
+import platform
 
 ACCOUNTS_DIR = os.path.expanduser('~/.gemini/accounts')
 MANIFEST_PATH = os.path.join(ACCOUNTS_DIR, 'manifest.json')
+
+def get_arch_label():
+    m = platform.machine()
+    if m == 'arm64':
+        return "🍏 Apple Silicon (M1/M2/M3/M4)"
+    elif m in ('x86_64', 'i386'):
+        return "⚡️ Intel (x86_64)"
+    return f"💻 {m}"
 
 def run_cmd(cmd):
     """Run a shell command safely."""
@@ -185,7 +194,6 @@ def main_menu():
                     pass
 
     items = []
-    # Saved accounts
     for k in sorted(manifest.keys()):
         if k == active_key:
             items.append(f"🟢 [ACTIVE] {k}")
@@ -200,8 +208,8 @@ def main_menu():
         items.append("🗑 Remove a Saved Account")
         
     items_applescript = '{' + ', '.join([f'"{it}"' for it in items]) + '}'
-    
-    prompt = f"🚀 Antigravity Account Switcher\\n🟢 Active Account: {curr_display}\\n\\nChoose an action:"
+    arch_info = get_arch_label()
+    prompt = f"🚀 Antigravity Account Switcher\\n{arch_info}\\n🟢 Active Account: {curr_display}\\n\\nChoose an action:"
     as_script = f'''
     tell application "System Events"
         activate
@@ -253,7 +261,7 @@ def main_menu():
             notify(f"Removed account {del_choice}", sound=False)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Antigravity Account Switcher CLI / GUI")
+    parser = argparse.ArgumentParser(description="Antigravity Account Switcher (Universal: Apple Silicon & Intel)")
     parser.add_argument('--list', action='store_true', help="List saved accounts")
     parser.add_argument('--switch', type=str, help="Switch to specific account")
     parser.add_argument('--save', nargs='?', const='', help="Save current account with optional name")
@@ -263,7 +271,7 @@ if __name__ == '__main__':
     if args.list:
         m = load_manifest()
         curr = get_current_keychain_token()
-        print("\nSaved Antigravity Accounts:")
+        print(f"\nAntigravity Accounts [{get_arch_label()}]:")
         for k, v in m.items():
             active = ""
             tf = v.get('token_file')
