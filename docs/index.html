@@ -136,7 +136,7 @@
     /* Hero Section */
     .hero {
       text-align: center;
-      margin-bottom: 50px;
+      margin-bottom: 40px;
     }
 
     .creator-badge {
@@ -175,41 +175,24 @@
       margin: 0 auto 36px;
     }
 
-    /* Showcase Banner & Screenshot */
+    /* Centerpiece Showcase Banner */
     .showcase-area {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 30px;
+      justify-content: center;
       margin-bottom: 60px;
     }
 
     .promo-img {
       width: 100%;
-      max-width: 840px;
-      border-radius: 18px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-      border: 1px solid var(--card-border);
+      max-width: 880px;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: block;
       transition: transform 0.3s ease;
     }
     .promo-img:hover {
-      transform: scale(1.01);
-    }
-
-    .screenshot-frame {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--card-border);
-      border-radius: 18px;
-      padding: 16px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-      max-width: 520px;
-      width: 100%;
-    }
-
-    .screenshot-frame img {
-      width: 100%;
-      border-radius: 12px;
-      display: block;
+      transform: scale(1.015);
     }
 
     /* OS Tabs */
@@ -392,10 +375,7 @@
       </section>
 
       <section class="showcase-area">
-        <img src="assets/promo_banner.jpg" alt="Antigravity Account Switcher Banner" class="promo-img">
-        <div class="screenshot-frame">
-          <img src="assets/screenshot.png" alt="محیط برنامه Antigravity Switcher">
-        </div>
+        <img src="assets/promo_banner.jpg?v=2" alt="Antigravity Account Switcher Showcase" class="promo-img">
       </section>
 
       <section class="tabs-wrapper">
