@@ -27,6 +27,9 @@ venv/
 # App build cache
 *.tmp
 *.log
+menubar-app/AntigravityMenuBar
+usage_cache.json
+usage_dashboard.html
 
 # Antigravity agent configuration
 GEMINI.md

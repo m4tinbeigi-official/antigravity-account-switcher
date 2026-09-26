@@ -1,0 +1,22 @@
+{
+  "name": "antigravity-account-switcher",
+  "displayName": "Antigravity Account Switcher",
+  "description": "1-Click Google Account Switcher & Quota Monitor in Antigravity Status Bar",
+  "version": "1.1.0",
+  "publisher": "m4tinbeigi",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["*"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravitySwitcher.openMenu",
+        "title": "Antigravity: Switch Account / Usage",
+        "icon": "$(account)"
+      }
+    ]
+  }
+}

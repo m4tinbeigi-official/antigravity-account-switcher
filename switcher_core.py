@@ -85,21 +85,26 @@ def format_countdown(iso_str):
         now = datetime.datetime.now(datetime.timezone.utc)
         diff = dt - now
         secs = int(diff.total_seconds())
-        local_time_str = dt.astimezone().strftime('%I:%M %p')
+        local_time_str = dt.astimezone().strftime('%a %I:%M %p')
         if secs <= 0:
             return "Ready to reset", local_time_str, 0, iso_str
-        h = secs // 3600
+        d = secs // 86400
+        h = (secs % 86400) // 3600
         m = (secs % 3600) // 60
         parts = []
+        if d > 0:
+            parts.append(f"{d}d")
         if h > 0:
-            parts.append(f"{h} hr")
-        if m > 0 or h == 0:
-            parts.append(f"{m} min")
+            parts.append(f"{h}h")
+        if m > 0 and d == 0:
+            parts.append(f"{m}m")
+        if not parts:
+            parts.append("1m")
         return " ".join(parts), local_time_str, secs, iso_str
     except Exception:
         return "N/A", "N/A", 0, ""
 
-def fetch_antigravity_usage(token_str):
+def fetch_antigravity_usage(token_str, known_email=None):
     """Fetch live Antigravity quota and model limits for an account token."""
     if not token_str or not token_str.startswith('go-keyring-base64:'):
         return None
@@ -124,7 +129,7 @@ def fetch_antigravity_usage(token_str):
                     },
                     data=b'{}'
                 )
-                with urllib.request.urlopen(req_models, timeout=4.0) as resp:
+                with urllib.request.urlopen(req_models, timeout=3.5) as resp:
                     models_data = json.loads(resp.read().decode('utf-8'))
                 break
             except Exception:
@@ -137,7 +142,7 @@ def fetch_antigravity_usage(token_str):
                             'refresh_token': rf
                         }).encode('utf-8')
                         req_rf = urllib.request.Request('https://oauth2.googleapis.com/token', data=params)
-                        with urllib.request.urlopen(req_rf, timeout=4.0) as r:
+                        with urllib.request.urlopen(req_rf, timeout=3.5) as r:
                             tok_d = json.loads(r.read().decode('utf-8'))
                             access_token = tok_d.get('access_token')
                     except Exception:
@@ -148,41 +153,26 @@ def fetch_antigravity_usage(token_str):
         if not models_data:
             return None
 
-        # Fetch Plan / Tier Name
         tier_name = "Antigravity Free"
-        try:
-            req_tier = urllib.request.Request(
-                'https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist',
-                headers={
-                    'Authorization': f'Bearer {access_token}',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'antigravity'
-                },
-                data=b'{}'
-            )
-            with urllib.request.urlopen(req_tier, timeout=2.5) as resp:
-                tier_data = json.loads(resp.read().decode('utf-8'))
-                paid = tier_data.get('paidTier', {})
-                curr = tier_data.get('currentTier', {})
-                tier_name = paid.get('name') or curr.get('name') or "Antigravity Free"
-        except Exception:
-            pass
 
-        # Extract Email
-        email = None
-        try:
-            req_u = urllib.request.Request(
-                'https://www.googleapis.com/oauth2/v3/userinfo',
-                headers={'Authorization': f'Bearer {access_token}'}
-            )
-            with urllib.request.urlopen(req_u, timeout=2.5) as r:
-                email = json.loads(r.read().decode('utf-8')).get('email')
-        except Exception:
-            pass
+        # Extract Email if not provided
+        email = known_email
+        if not email:
+            try:
+                req_u = urllib.request.Request(
+                    'https://www.googleapis.com/oauth2/v3/userinfo',
+                    headers={'Authorization': f'Bearer {access_token}'}
+                )
+                with urllib.request.urlopen(req_u, timeout=2.0) as r:
+                    email = json.loads(r.read().decode('utf-8')).get('email')
+            except Exception:
+                pass
 
         models = models_data.get('models', {})
         pools_map = {}
         for m_id, m_info in models.items():
+            if m_info.get('isInternal'):
+                continue
             quota = m_info.get('quotaInfo')
             if not quota:
                 continue
@@ -236,20 +226,21 @@ def fetch_antigravity_usage(token_str):
                     'models': p['models']
                 })
 
-        session = pools[0] if pools else {
-            'name': 'Current Session',
-            'used_pct': 0.0,
-            'remaining_pct': 100.0,
-            'resets_in': 'N/A',
-            'reset_time': 'N/A',
-            'reset_secs': 0,
-            'reset_iso': ''
-        }
+        daily = next((p for p in pools if 'Gemini' in p['name']), None)
+        weekly = next((p for p in pools if 'Claude' in p['name']), None) or next((p for p in pools if 'GPT' in p['name']), None)
+        if not daily and pools:
+            daily = pools[0]
+        if not daily:
+            daily = {'name': 'Daily Limit (Gemini)', 'used_pct': 0.0, 'remaining_pct': 100.0, 'resets_in': 'N/A', 'reset_time': 'N/A', 'reset_secs': 0, 'reset_iso': ''}
+        if not weekly:
+            weekly = {'name': 'Weekly Limit (Claude & GPT)', 'used_pct': 0.0, 'remaining_pct': 100.0, 'resets_in': 'N/A', 'reset_time': 'N/A', 'reset_secs': 0, 'reset_iso': ''}
 
         return {
             'email': email or 'Unknown',
             'tier': tier_name,
-            'session': session,
+            'session': daily,
+            'daily': daily,
+            'weekly': weekly,
             'pools': pools
         }
     except Exception as e:
@@ -263,18 +254,25 @@ def make_ascii_bar(pct, width=20):
     return "█" * filled + "░" * empty
 
 def print_claude_cli_usage(usage):
-    """Print a Claude Code style terminal card for usage."""
+    """Print a Claude Code style terminal card for usage with daily and weekly limits."""
     if not usage:
         print("\n❌ Could not retrieve Antigravity usage. Please ensure you are signed in.\n")
         return
 
     email = usage.get('email', 'Unknown')
     tier = usage.get('tier', 'Antigravity')
-    sess = usage.get('session', {})
-    used = sess.get('used_pct', 0.0)
-    rem = sess.get('remaining_pct', 100.0)
-    countdown = sess.get('resets_in', 'N/A')
-    reset_time = sess.get('reset_time', 'N/A')
+    daily = usage.get('daily', usage.get('session', {}))
+    weekly = usage.get('weekly', {})
+
+    d_used = daily.get('used_pct', 0.0)
+    d_rem = daily.get('remaining_pct', 100.0)
+    d_count = daily.get('resets_in', 'N/A')
+    d_time = daily.get('reset_time', 'N/A')
+
+    w_used = weekly.get('used_pct', 0.0)
+    w_rem = weekly.get('remaining_pct', 100.0)
+    w_count = weekly.get('resets_in', 'N/A')
+    w_time = weekly.get('reset_time', 'N/A')
 
     # Color codes (Antigravity Signature Cyan & Indigo)
     CYAN = "\033[38;2;56;189;248m"    # Antigravity Cyan #38BDF8
@@ -285,32 +283,39 @@ def print_claude_cli_usage(usage):
     YELLOW = "\033[33m"
     RESET = "\033[0m"
 
-    bar = make_ascii_bar(used, width=22)
-    bar_color = GREEN if used < 60 else (YELLOW if used < 85 else CYAN)
+    d_bar = make_ascii_bar(d_used, width=20)
+    d_col = GREEN if d_used < 60 else (YELLOW if d_used < 85 else CYAN)
+
+    w_bar = make_ascii_bar(w_used, width=20)
+    w_col = GREEN if w_used < 60 else (YELLOW if w_used < 85 else CYAN)
 
     print(f"\n{CYAN}{BOLD}┌─────────────────────────────────────────────────────────────┐{RESET}")
     print(f"{CYAN}{BOLD}│{RESET}                       {BOLD}ANTIGRAVITY USAGE{RESET}                     {CYAN}{BOLD}│{RESET}")
     print(f"{CYAN}{BOLD}│{RESET}   {DIM}Plan:{RESET} {INDIGO}{tier}{RESET}  •  {DIM}Account:{RESET} {email:<26} {CYAN}{BOLD}│{RESET}")
     print(f"{CYAN}{BOLD}├─────────────────────────────────────────────────────────────┤{RESET}")
-    print(f"{CYAN}{BOLD}│{RESET}  {BOLD}Current session{RESET}                                            {CYAN}{BOLD}│{RESET}")
-    print(f"{CYAN}{BOLD}│{RESET}  {bar_color}{used}% used{RESET} {DIM}({rem}% remaining){RESET}                             {CYAN}{BOLD}│{RESET}")
-    reset_str = f"Resets in {countdown} (at {reset_time})" if countdown != 'N/A' else "No active limit window"
-    print(f"{CYAN}{BOLD}│{RESET}  {DIM}⏱  {reset_str:<54}{RESET} {CYAN}{BOLD}│{RESET}")
-    print(f"{CYAN}{BOLD}│{RESET}                                                             {CYAN}{BOLD}│{RESET}")
-    print(f"{CYAN}{BOLD}│{RESET}  [{bar_color}{bar}{RESET}]  {BOLD}{used}%{RESET}                                  {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  ⚡️ {BOLD}Daily Limit (Gemini 2.5 & 3.x){RESET}                         {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  {d_col}{d_used}% used{RESET} {DIM}({d_rem}% remaining){RESET}                             {CYAN}{BOLD}│{RESET}")
+    d_reset_str = f"Resets in {d_count} (at {d_time})" if d_count != 'N/A' else "No active limit window"
+    print(f"{CYAN}{BOLD}│{RESET}  {DIM}⏱  {d_reset_str:<54}{RESET} {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  [{d_col}{d_bar}{RESET}]  {BOLD}{d_used}%{RESET}                                {CYAN}{BOLD}│{RESET}")
     print(f"{CYAN}{BOLD}├─────────────────────────────────────────────────────────────┤{RESET}")
-    print(f"{CYAN}{BOLD}│{RESET}  {BOLD}Model Quotas{RESET}                                               {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  🔮 {BOLD}Weekly Limit (Claude 4.6 & GPT-OSS){RESET}                    {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  {w_col}{w_used}% used{RESET} {DIM}({w_rem}% remaining){RESET}                             {CYAN}{BOLD}│{RESET}")
+    w_reset_str = f"Resets in {w_count} (at {w_time})" if w_count != 'N/A' else "No active limit window"
+    print(f"{CYAN}{BOLD}│{RESET}  {DIM}⏱  {w_reset_str:<54}{RESET} {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  [{w_col}{w_bar}{RESET}]  {BOLD}{w_used}%{RESET}                                {CYAN}{BOLD}│{RESET}")
+    print(f"{CYAN}{BOLD}├─────────────────────────────────────────────────────────────┤{RESET}")
+    print(f"{CYAN}{BOLD}│{RESET}  {BOLD}Model Quotas Breakdown{RESET}                                     {CYAN}{BOLD}│{RESET}")
 
     for p in usage.get('pools', []):
         p_name = p.get('name')
         p_used = p.get('used_pct', 0.0)
-        p_bar = make_ascii_bar(p_used, width=16)
+        p_bar = make_ascii_bar(p_used, width=14)
         p_col = GREEN if p_used < 60 else (YELLOW if p_used < 85 else CYAN)
         p_count = p.get('resets_in', 'N/A')
         print(f"{CYAN}{BOLD}│{RESET}  • {BOLD}{p_name:<26}{RESET}                             {CYAN}{BOLD}│{RESET}")
         line = f"    {p_col}{p_used:>5.1f}% used{RESET} [{p_col}{p_bar}{RESET}]  {DIM}Resets: {p_count}{RESET}"
-        # Pad visually
-        raw_len = 4 + 11 + 2 + 16 + 10 + len(p_count)
+        raw_len = 4 + 11 + 2 + 14 + 10 + len(p_count)
         pad = max(0, 57 - raw_len)
         print(f"{CYAN}{BOLD}│{RESET}{line}{' ' * pad}{CYAN}{BOLD}│{RESET}")
 
@@ -594,27 +599,46 @@ def generate_claude_html_dashboard(all_accounts_data, active_key):
     <select id="accountSelect" onchange="onAccountChange()"></select>
   </div>
 
-  <!-- Primary Session Card -->
+  <!-- Daily Session Card -->
   <div class="card">
     <div class="card-header">
-      <div class="card-title">Current session</div>
-      <div class="stat-reset" id="resetCountdown">⏱ Resets in --</div>
+      <div class="card-title">⚡️ Daily Limit (Gemini 2.5 & 3.x)</div>
+      <div class="stat-reset" id="dailyCountdown">⏱ Resets in --</div>
     </div>
     
     <div class="stat-main">
-      <div class="stat-pct" id="usedPct">0%</div>
-      <div class="stat-rem" id="remPct">used</div>
+      <div class="stat-pct" id="dailyUsedPct">0%</div>
+      <div class="stat-rem" id="dailyRemPct">used</div>
     </div>
 
     <div class="progress-bar">
-      <div class="progress-fill" id="progressBar" style="width: 0%;"></div>
+      <div class="progress-fill" id="dailyProgressBar" style="width: 0%;"></div>
     </div>
 
-    <div class="stat-reset" id="resetDetail">Resets at --</div>
+    <div class="stat-reset" id="dailyDetail">Resets at --</div>
+  </div>
+
+  <!-- Weekly Session Card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔮 Weekly Limit (Claude 4.6 & GPT-OSS)</div>
+      <div class="stat-reset" id="weeklyCountdown">⏱ Resets in --</div>
+    </div>
+    
+    <div class="stat-main">
+      <div class="stat-pct" id="weeklyUsedPct">0%</div>
+      <div class="stat-rem" id="weeklyRemPct">used</div>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="weeklyProgressBar" style="width: 0%;"></div>
+    </div>
+
+    <div class="stat-reset" id="weeklyDetail">Resets at --</div>
   </div>
 
   <!-- Model Quotas Section -->
-  <div class="section-title">Model Quotas</div>
+  <div class="section-title">Model Quotas Breakdown</div>
   <div id="poolsContainer" style="display:flex; flex-direction:column; gap:10px;"></div>
 
   <div class="footer">
@@ -634,26 +658,29 @@ def generate_claude_html_dashboard(all_accounts_data, active_key):
     document.getElementById("activeEmail").innerText = data.email || accKey;
     document.getElementById("tierTag").innerText = data.tier || "Free";
 
-    const sess = data.session || {{}};
-    const used = sess.used_pct || 0;
-    const rem = sess.remaining_pct || 100;
-    
-    document.getElementById("usedPct").innerText = used + "% used";
-    document.getElementById("remPct").innerText = "(" + rem + "% remaining)";
-    
-    const fill = document.getElementById("progressBar");
-    fill.style.width = Math.min(100, Math.max(0, used)) + "%";
-    if (used > 85) {{
-      fill.style.background = "#E05252";
-    }} else if (used > 60) {{
-      fill.style.background = "var(--yellow)";
-    }} else {{
-      fill.style.background = "var(--accent)";
-    }}
+    // Daily
+    const daily = data.daily || data.session || {{}};
+    const dUsed = daily.used_pct || 0;
+    const dRem = daily.remaining_pct || 100;
+    document.getElementById("dailyUsedPct").innerText = dUsed + "% used";
+    document.getElementById("dailyRemPct").innerText = "(" + dRem + "% remaining)";
+    const dFill = document.getElementById("dailyProgressBar");
+    dFill.style.width = Math.min(100, Math.max(0, dUsed)) + "%";
+    dFill.style.background = dUsed > 85 ? "#E05252" : (dUsed > 60 ? "var(--yellow)" : "var(--accent)");
+    document.getElementById("dailyCountdown").innerText = daily.resets_in !== "N/A" ? ("⏱ Resets in " + daily.resets_in) : "⏱ No active limit";
+    document.getElementById("dailyDetail").innerText = daily.reset_time !== "N/A" ? ("Window refreshes at " + daily.reset_time) : "Full capacity available";
 
-    const countdownText = sess.resets_in !== "N/A" ? ("⏱ Resets in " + sess.resets_in) : "⏱ No active limit";
-    document.getElementById("resetCountdown").innerText = countdownText;
-    document.getElementById("resetDetail").innerText = sess.reset_time !== "N/A" ? ("Window refreshes at " + sess.reset_time) : "Full capacity available";
+    // Weekly
+    const weekly = data.weekly || {{}};
+    const wUsed = weekly.used_pct || 0;
+    const wRem = weekly.remaining_pct || 100;
+    document.getElementById("weeklyUsedPct").innerText = wUsed + "% used";
+    document.getElementById("weeklyRemPct").innerText = "(" + wRem + "% remaining)";
+    const wFill = document.getElementById("weeklyProgressBar");
+    wFill.style.width = Math.min(100, Math.max(0, wUsed)) + "%";
+    wFill.style.background = wUsed > 85 ? "#E05252" : (wUsed > 60 ? "var(--yellow)" : "var(--accent)");
+    document.getElementById("weeklyCountdown").innerText = weekly.resets_in !== "N/A" ? ("⏱ Resets in " + weekly.resets_in) : "⏱ No active limit";
+    document.getElementById("weeklyDetail").innerText = weekly.reset_time !== "N/A" ? ("Window refreshes at " + weekly.reset_time) : "Full capacity available";
 
     // Pools
     const poolsContainer = document.getElementById("poolsContainer");
@@ -664,7 +691,7 @@ def generate_claude_html_dashboard(all_accounts_data, active_key):
       
       const pUsed = p.used_pct || 0;
       const pColor = pUsed > 85 ? "#E05252" : (pUsed > 60 ? "var(--yellow)" : "var(--accent)");
-      const pReset = p.resets_in !== "N/A" ? ("Resets in " + p.resets_in + " (" + p.reset_time + ")") : "Ready";
+      const pReset = (p.resets_in && p.resets_in !== "N/A") ? ("Resets in " + p.resets_in + (p.reset_time && p.reset_time !== "N/A" ? " (" + p.reset_time + ")" : "")) : "Ready to use";
 
       poolDiv.innerHTML = `
         <div class="pool-header">
@@ -701,26 +728,34 @@ def generate_claude_html_dashboard(all_accounts_data, active_key):
 
   updateDisplay(activeKey);
 
-  // Real-time ticking countdown
+  // Real-time ticking countdown for both daily and weekly
   setInterval(() => {{
     const sel = document.getElementById("accountSelect");
     const currentKey = sel ? sel.value : activeKey;
     const data = accountsData[currentKey];
-    if (!data || !data.session || !data.session.reset_iso) return;
-    
-    const target = new Date(data.session.reset_iso).getTime();
-    const now = new Date().getTime();
-    const diff = Math.floor((target - now) / 1000);
-    
-    if (diff > 0) {{
-      const h = Math.floor(diff / 3600);
-      const m = Math.floor((diff % 3600) / 60);
-      const s = diff % 60;
-      let str = "";
-      if (h > 0) str += h + "h ";
-      str += m + "m " + s + "s";
-      document.getElementById("resetCountdown").innerText = "⏱ Resets in " + str;
+    if (!data) return;
+
+    function tickTimer(elemId, isoStr) {{
+      if (!isoStr) return;
+      const target = new Date(isoStr).getTime();
+      const now = new Date().getTime();
+      const diff = Math.floor((target - now) / 1000);
+      if (diff > 0) {{
+        const d = Math.floor(diff / 86400);
+        const h = Math.floor((diff % 86400) / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        let str = "";
+        if (d > 0) str += d + "d ";
+        if (h > 0 || d > 0) str += h + "h ";
+        str += m + "m " + s + "s";
+        const el = document.getElementById(elemId);
+        if (el) el.innerText = "⏱ Resets in " + str;
+      }}
     }}
+
+    if (data.daily && data.daily.reset_iso) tickTimer("dailyCountdown", data.daily.reset_iso);
+    if (data.weekly && data.weekly.reset_iso) tickTimer("weeklyCountdown", data.weekly.reset_iso);
   }}, 1000);
 </script>
 
@@ -731,37 +766,56 @@ def generate_claude_html_dashboard(all_accounts_data, active_key):
         f.write(html_content)
     return USAGE_DASHBOARD_PATH
 
-def open_claude_usage_window(target_key=None):
-    """Fetch usage and open the Claude-style HTML desktop window."""
+def open_claude_usage_window(target_key=None, force_refresh=False):
+    """Fetch usage and open the Claude-style HTML desktop window fast."""
     manifest = load_manifest()
     curr_token = get_current_keychain_token()
+    cache_path = os.path.join(ACCOUNTS_DIR, "usage_cache.json")
     
     all_data = {}
     active_key = None
-    
-    # 1. Fetch active account
-    if curr_token:
-        active_usage = fetch_antigravity_usage(curr_token)
-        if active_usage:
-            active_email = active_usage.get('email', 'Active Account')
-            active_key = active_email
-            all_data[active_email] = active_usage
-            
-    # 2. Fetch saved manifest accounts
-    for k, v in manifest.items():
-        tf = v.get('token_file')
-        if tf and os.path.exists(tf):
-            try:
-                tok = open(tf).read().strip()
-                if tok == curr_token and active_key:
-                    all_data[k] = all_data[active_key]
-                    active_key = k
-                else:
-                    u = fetch_antigravity_usage(tok)
-                    if u:
-                        all_data[k] = u
-            except Exception:
-                pass
+
+    # Check cache (45s TTL)
+    if not force_refresh and os.path.exists(cache_path):
+        try:
+            mtime = os.path.getmtime(cache_path)
+            if time.time() - mtime < 45:
+                all_data = json.load(open(cache_path))
+        except Exception:
+            pass
+
+    if not all_data:
+        tasks = {}
+        for k, v in manifest.items():
+            tf = v.get('token_file')
+            if tf and os.path.exists(tf):
+                try:
+                    tok = open(tf).read().strip()
+                    if curr_token and tok == curr_token:
+                        active_key = k
+                    tasks[k] = (tok, v.get('email'))
+                except Exception:
+                    pass
+
+        if curr_token and not active_key:
+            tasks['Active Account'] = (curr_token, None)
+            active_key = 'Active Account'
+
+        import concurrent.futures
+        def _fetch_one(item):
+            name, (tok, email) = item
+            return name, fetch_antigravity_usage(tok, known_email=email)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            for name, u in executor.map(_fetch_one, tasks.items()):
+                if u:
+                    all_data[name] = u
+
+        try:
+            with open(cache_path, "w") as f:
+                json.dump(all_data, f)
+        except Exception:
+            pass
 
     if not all_data:
         osascript('tell application "System Events" to display alert "Error" message "Could not retrieve Antigravity usage. Please check your internet connection or sign in to Antigravity first." as critical')
@@ -772,10 +826,9 @@ def open_claude_usage_window(target_key=None):
     
     play_sound("Glass")
     
-    # Try Chrome app mode first (gives native standalone frameless window)
     chrome_path = "/Applications/Google Chrome.app"
     if os.path.exists(chrome_path):
-        subprocess.Popen(['open', '-na', 'Google Chrome', '--args', f'--app=file://{dashboard_path}', '--window-size=460,720'])
+        subprocess.Popen(['open', '-a', 'Google Chrome', f'file://{dashboard_path}'])
     else:
         run_cmd(['open', dashboard_path])
 
@@ -854,6 +907,27 @@ def save_current_account(custom_label=None):
     print(f"✓ Account saved: {key}")
     return True
 
+def get_antigravity_app_path():
+    """Locate Antigravity application path on macOS."""
+    candidates = [
+        "/Applications/Antigravity.app",
+        "/Applications/Antigravity IDE.app",
+        os.path.expanduser("~/Applications/Antigravity.app"),
+        os.path.expanduser("~/Applications/Antigravity IDE.app")
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return p
+    return "/Applications/Antigravity.app"
+
+def restart_antigravity():
+    """Cleanly terminate Antigravity and language server, then restart."""
+    app_path = get_antigravity_app_path()
+    run_cmd(['pkill', '-9', '-f', f"{app_path}/Contents/MacOS/Antigravity"])
+    run_cmd(['pkill', '-9', '-f', f"{app_path}/Contents/Resources/bin/language_server"])
+    time.sleep(1)
+    run_cmd(['open', app_path])
+
 def switch_to_account(account_key):
     """Switch active Antigravity account in macOS Keychain and restart app."""
     manifest = load_manifest()
@@ -876,35 +950,70 @@ def switch_to_account(account_key):
         return False
 
     # Restart Antigravity
-    run_cmd(['pkill', '-9', '-f', '/Applications/Antigravity.app'])
-    time.sleep(1)
-    run_cmd(['open', '/Applications/Antigravity.app'])
+    restart_antigravity()
     
     play_sound("Hero")
     notify(f"Switched to {account_key}!", sound=False)
     print(f"✓ Successfully switched to: {account_key}")
     return True
 
-def logout_and_add_account():
-    """Logout current account to allow signing into a new Gmail."""
+def add_account_wizard():
+    """Interactive guided wizard to log in and automatically save a new Gmail account."""
     curr = get_current_keychain_token()
+    manifest = load_manifest()
+    
+    # 1. Protect unsaved active account
     if curr:
-        ans = osascript('tell application "System Events" to button returned of (display dialog "Would you like to save the current account before logging out?" buttons {"Yes, Save First", "No, Just Logout", "Cancel"} default button 1)')
-        if ans == "Cancel" or not ans:
-            return
-        if ans == "Yes, Save First":
-            save_current_account()
+        is_saved = any(
+            v.get('token_file') and os.path.exists(v['token_file']) and open(v['token_file']).read().strip() == curr
+            for v in manifest.values()
+        )
+        if not is_saved:
+            ans = osascript('tell application "System Events" to button returned of (display dialog "⚠️ Your currently active account is not saved yet.\\n\\nSave it first before switching to a new account?" buttons {"Save Active First", "Skip & Logout", "Cancel"} default button 1 with icon caution)')
+            if ans == "Cancel" or not ans:
+                return
+            if ans == "Save Active First":
+                if not save_current_account():
+                    return
 
-    # Delete Keychain password
+    # 2. Confirm logout & launch login
+    step1 = osascript('tell application "System Events" to button returned of (display dialog "🧙‍♂️ Add New Account Wizard\\n\\nStep 1: Antigravity will restart in login mode.\\nStep 2: Sign in with your new Gmail inside Antigravity.\\nStep 3: This wizard will automatically capture and save your new account!" buttons {"Cancel", "Start Login"} default button 2 with icon note)')
+    if step1 != "Start Login":
+        return
+
+    # Remove current token from Keychain
     run_cmd(['security', 'delete-generic-password', '-s', 'gemini', '-a', 'antigravity'])
-    
-    # Restart Antigravity into login flow
-    run_cmd(['pkill', '-9', '-f', '/Applications/Antigravity.app'])
-    time.sleep(1)
-    run_cmd(['open', '/Applications/Antigravity.app'])
-    
+    restart_antigravity()
     play_sound("Blow")
-    osascript('tell application "System Events" to display dialog "Logged out successfully!\\n\\nAntigravity is reopening. Please sign in with your other Gmail.\\n\\nOnce signed in, open this Switcher and select \\"Save Current Account\\" to keep it!" buttons {"OK"} default button 1 with icon note')
+
+    # 3. Wait for user to complete login in Antigravity
+    while True:
+        step2 = osascript('tell application "System Events" to button returned of (display dialog "⏳ Waiting for Login...\\n\\nPlease complete sign-in with your new Gmail inside Antigravity.\\n\\nWhen done, click \\"I Have Signed In\\" below:" buttons {"Cancel", "I Have Signed In"} default button 2 with icon note)')
+        if step2 != "I Have Signed In":
+            return
+
+        new_tok = get_current_keychain_token()
+        if new_tok and new_tok != curr:
+            email = extract_email_from_token(new_tok)
+            def_label = email if email else f"Account {len(manifest) + 1}"
+            label = osascript(f'tell application "System Events" to text returned of (display dialog "🎉 Login detected!\\n\\nEnter a friendly name/label for this account:" default answer "{def_label}" buttons {{"Save Account"}} default button 1)')
+            label = label.strip() if label else def_label
+            save_current_account(custom_label=label)
+            play_sound("Hero")
+            osascript(f'tell application "System Events" to display dialog "✅ Account \'{label}\' saved successfully!\\n\\nYou can now switch between accounts with 1 click." buttons {{"Done"}} default button 1 with icon note')
+            return
+        elif new_tok and new_tok == curr:
+            retry = osascript('tell application "System Events" to button returned of (display dialog "⚠️ Same account detected.\\n\\nPlease log in with a different Gmail account in Antigravity." buttons {"Cancel", "Try Again"} default button 2 with icon caution)')
+            if retry != "Try Again":
+                return
+        else:
+            retry = osascript('tell application "System Events" to button returned of (display dialog "⚠️ No active login detected in Antigravity yet.\\n\\nPlease ensure you completed Google sign-in in the Antigravity window." buttons {"Cancel", "Try Again"} default button 2 with icon caution)')
+            if retry != "Try Again":
+                return
+
+def logout_and_add_account():
+    """Launch add account wizard."""
+    add_account_wizard()
 
 def main_menu():
     """Interactive GUI dialog picker."""
@@ -948,7 +1057,7 @@ def main_menu():
             
     items.append("📊 View Usage & Limits (Claude Style)")
     items.append(f"💾 Save Current Account ({curr_display})")
-    items.append("➕ Add New Gmail (Logout & Sign In)")
+    items.append("➕ Add New Account (Guided Wizard)")
     if manifest:
         items.append("🗑 Remove a Saved Account")
     items.append("─────────────────────────────")
@@ -982,7 +1091,7 @@ def main_menu():
         open_claude_usage_window(active_key)
     elif choice.startswith("💾 Save Current Account"):
         save_current_account()
-    elif choice.startswith("➕ Add New Gmail"):
+    elif choice.startswith("➕ Add New Account") or choice.startswith("➕ Add New Gmail"):
         logout_and_add_account()
     elif choice.startswith("⭐ About"):
         show_about()
@@ -1018,6 +1127,7 @@ if __name__ == '__main__':
     parser.add_argument('--list', action='store_true', help="List saved accounts")
     parser.add_argument('--switch', type=str, help="Switch to specific account")
     parser.add_argument('--save', nargs='?', const='', help="Save current account with optional name")
+    parser.add_argument('--wizard', '--add', action='store_true', dest='wizard', help="Run interactive guided wizard to add a new account")
     parser.add_argument('--logout', action='store_true', help="Log out from current account")
     parser.add_argument('--github', action='store_true', help="Open GitHub project page")
     parser.add_argument('--about', action='store_true', help="Display creator & project info")
@@ -1048,6 +1158,8 @@ if __name__ == '__main__':
         switch_to_account(args.switch)
     elif args.save is not None:
         save_current_account(args.save if args.save else None)
+    elif args.wizard:
+        add_account_wizard()
     elif args.logout:
         logout_and_add_account()
     elif args.github:

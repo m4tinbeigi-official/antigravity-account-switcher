@@ -27,8 +27,11 @@ Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official
 
 <br/><br/>
 
-### 📸 Application Interface
-<img src="assets/screenshot.png" alt="Antigravity Account Switcher Interface" width="520" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15);" />
+### 📸 Application Interface & Live Quotas Dashboard
+<p align="center">
+  <img src="assets/dashboard_preview.png" alt="Antigravity Live Dual Quotas Dashboard" width="440" style="border-radius: 14px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.15); margin: 6px;" />
+  <img src="assets/screenshot.png" alt="Antigravity Account Switcher Interface" width="440" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); margin: 6px;" />
+</p>
 
 </div>
 
@@ -52,12 +55,16 @@ Switching between multiple Gmail / Google accounts on **Google Antigravity** can
 
 ### ✨ Features
 - ⚡️ **Instant 1-Click Switching**: Seamlessly swap between work, personal, or dev accounts.
-- 📊 **Claude-Style Usage Dashboard**: Real-time quota & session limits tracker displayed in Anthropic Claude's signature aesthetic (GUI window + Claude Code terminal box).
+- 🖥 **macOS Menu Bar Applet**: Sleek, compact 1-click status bar item next to system clock for instant switching and quota viewing.
+- 🧩 **Antigravity IDE Status Bar Integration**: QuickPick account switcher and limit viewer built right into the code editor's status bar.
+- 📊 **Dual Quota Monitoring (Daily & Weekly)**: Separate live tracking for Gemini daily rolling limits & Claude 4.6 / GPT-OSS weekly limits with live ticking countdowns.
+- 🧙‍♂️ **Guided Add Account Wizard**: Interactive step-by-step sign-in flow that detects and saves new accounts automatically without CLI commands.
+- 🚀 **Parallel Sub-Second Engine**: Parallel thread querying with smart local caching for instant dashboard opening.
 - 🍏 **Universal macOS Support**: Native Universal 2 binary for **Apple Silicon (M1/M2/M3/M4)** and **Intel (x86_64)** with tactile sound effects and high-res icon.
 - 🪟 **Native Windows 10 & 11 Support**: Direct integration with Windows Credential Manager (`advapi32.dll`) via PowerShell and WinForms UI.
 - 🔒 **Zero Data Transmission**: Everything runs 100% locally on your machine. Tokens never leave your local credential store.
 - 💻 **Spotlight & CLI Integration**: Run from `/Applications`, Desktop, Spotlight (`Cmd+Space`), or terminal via `agy-switch`.
-- 🔄 **Safe Auto-Restart**: Seamlessly restarts Antigravity with the selected account applied.
+- 🔄 **Safe Auto-Restart**: Cleanly terminates background language servers and restarts Antigravity with the selected account applied.
 
 ---
 
@@ -122,7 +129,11 @@ powershell -File .\switcher_windows.ps1 -About
 
 ### 🌟 ویژگی‌های کلیدی
 - ⚡️ **سوئیچ زیر ۳ ثانیه**: جابه‌جایی آنی بین اکانت‌های کاری و شخصی بدون نیاز به لاگین مجدد.
-- 📊 **نمایشگر مصرف به سبک Claude**: بررسی دقیق درصد مصرف سهمیه (Quota)، سشن جاری (Current session)، زمان بازنشانی (Reset Timer) و تفکیک مدل‌ها دقیقاً مطابق ظاهر نرم‌افزار و ترمینال Claude!
+- 🖥 **آیکون نیتیو Menu Bar مک**: آیکون اختصاصی و کم‌حجم در نوار بالای مک کنار ساعت برای دسترسی سریع به تمام امکانات.
+- 🧩 **اکستنشن ادیتور Antigravity IDE**: دسترسی مستقیم از نوار وضعیت پایین ادیتور (Status Bar).
+- 📊 **تفکیک سهمیه روزانه و هفتگی**: رهگیری مجزای سهمیه روزانه مدل‌های Gemini و سهمیه هفتگی مدل‌های Claude 4.6 و GPT-OSS با تایمر معکوس زنده.
+- 🧙‍♂️ **ویزارد هوشمند افزودن اکانت**: هدایت مرحله‌به‌مرحله برای ورود به جیمیل جدید و ذخیره خودکار بدون تایپ دستور در ترمینال.
+- 🚀 **سرعت فوق‌العاده با کش محلی**: بارگذاری موازی و کش هوشمند برای باز شدن آنی در کسری از ثانیه.
 - 🍏 **مک‌های سیلیکون و اینتل**: باینری دوگانه Universal 2 برای چیپ‌های سری M اپل و اینتل به همراه افکت صوتی و آیکون HD.
 - 🪟 **ویندوز ۱۰ و ۱۱**: پیاده‌سازی نیتیو با PowerShell و WinForms با اتصال به `advapi32.dll` بدون نیاز به نصب پیش‌نیاز.
 - 🔒 **امنیت ۱۰۰٪ آفلاین**: هیچ اطلاعاتی به هیچ سروری ارسال نمی‌شود؛ تمام داده‌ها به صورت امن در سیستم خودتان ذخیره می‌شوند.
