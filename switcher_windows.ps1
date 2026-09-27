@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Antigravity Account Switcher for Windows 10 & 11
     Created by Rick Sanchez (https://github.com/m4tinbeigi-official)
@@ -421,7 +421,7 @@ $form.Controls.Add($listBox)
 $btnUsage = New-Object System.Windows.Forms.Button
 $btnUsage.Location = New-Object System.Drawing.Point(20, 240)
 $btnUsage.Size = New-Object System.Drawing.Size(400, 36)
-$btnUsage.Text = "📊 View Usage & Limits (Claude Style)"
+$btnUsage.Text = "[*] View Usage and Limits"
 $btnUsage.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $btnUsage.Add_Click({
     Show-ClaudeUsageCLI
@@ -433,7 +433,7 @@ $form.Controls.Add($btnUsage)
 $btnSwitch = New-Object System.Windows.Forms.Button
 $btnSwitch.Location = New-Object System.Drawing.Point(20, 285)
 $btnSwitch.Size = New-Object System.Drawing.Size(190, 38)
-$btnSwitch.Text = "⚡️ Switch to Selected"
+$btnSwitch.Text = "Switch to Selected"
 $btnSwitch.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $btnSwitch.Add_Click({
     if ($listBox.SelectedItem) {
@@ -447,7 +447,7 @@ $form.Controls.Add($btnSwitch)
 $btnSave = New-Object System.Windows.Forms.Button
 $btnSave.Location = New-Object System.Drawing.Point(230, 285)
 $btnSave.Size = New-Object System.Drawing.Size(190, 38)
-$btnSave.Text = "💾 Save Current Account"
+$btnSave.Text = "Save Current Account"
 $btnSave.Add_Click({
     $form.Close()
     Save-CurrentAccount
@@ -458,7 +458,7 @@ $form.Controls.Add($btnSave)
 $btnLogout = New-Object System.Windows.Forms.Button
 $btnLogout.Location = New-Object System.Drawing.Point(20, 335)
 $btnLogout.Size = New-Object System.Drawing.Size(400, 38)
-$btnLogout.Text = "➕ Add New Account (Logout & Sign In)"
+$btnLogout.Text = "+ Add New Account (Logout and Sign In)"
 $btnLogout.Add_Click({
     $form.Close()
     Logout-And-Add
@@ -469,7 +469,7 @@ $form.Controls.Add($btnLogout)
 $btnAbout = New-Object System.Windows.Forms.Button
 $btnAbout.Location = New-Object System.Drawing.Point(20, 385)
 $btnAbout.Size = New-Object System.Drawing.Size(400, 38)
-$btnAbout.Text = "⭐ Star on GitHub & About (by Rick Sanchez)"
+$btnAbout.Text = "Star on GitHub and About (by Rick Sanchez)"
 $btnAbout.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $btnAbout.Add_Click({
     Show-AboutDialog
