@@ -65,8 +65,12 @@ if (-not ([System.Management.Automation.PSTypeName]'WinCred').Type) {
                 byte[] bytes = new byte[cred.CredentialBlobSize];
                 Marshal.Copy(cred.CredentialBlob, bytes, 0, cred.CredentialBlobSize);
                 string utf8 = Encoding.UTF8.GetString(bytes);
-                if (utf8.StartsWith("go-keyring-base64:")) return utf8;
-                return Encoding.Unicode.GetString(bytes);
+                if (utf8.StartsWith("go-keyring-base64:") || utf8.TrimStart().StartsWith("{")) return utf8;
+                try {
+                    return Encoding.Unicode.GetString(bytes);
+                } catch {
+                    return utf8;
+                }
             } finally {
                 CredFree(credPtr);
             }
@@ -108,12 +112,15 @@ if (!(Test-Path $AccountsDir)) {
 function Get-Manifest {
     if (Test-Path $ManifestPath) {
         try {
-            return Get-Content $ManifestPath -Raw | ConvertFrom-Json
+            $content = Get-Content $ManifestPath -Raw
+            if ($content -and $content.Trim()) {
+                return $content | ConvertFrom-Json
+            }
         } catch {
-            return @{}
+            return [PSCustomObject]@{}
         }
     }
-    return @{}
+    return [PSCustomObject]@{}
 }
 
 function Save-Manifest($manifest) {
@@ -121,23 +128,62 @@ function Save-Manifest($manifest) {
 }
 
 function Get-CurrentToken {
-    return [WinCred]::Read("gemini")
+    $token = [WinCred]::Read("gemini:antigravity")
+    if (!$token) {
+        $token = [WinCred]::Read("gemini")
+    }
+    return $token
+}
+
+function Parse-TokenData($tokenStr) {
+    if (!$tokenStr) { return $null }
+    try {
+        if ($tokenStr.StartsWith("go-keyring-base64:")) {
+            $b64 = $tokenStr.Substring("go-keyring-base64:".Length)
+            $jsonBytes = [System.Convert]::FromBase64String($b64)
+            $jsonStr = [System.Text.Encoding]::UTF8.GetString($jsonBytes)
+            return ($jsonStr | ConvertFrom-Json)
+        }
+        if ($tokenStr.TrimStart().StartsWith("{")) {
+            return ($tokenStr | ConvertFrom-Json)
+        }
+    } catch {}
+    return $null
 }
 
 function Extract-Email($tokenStr) {
-    if (!$tokenStr -or !$tokenStr.StartsWith("go-keyring-base64:")) { return $null }
+    if (!$tokenStr) { return $null }
+    $data = Parse-TokenData $tokenStr
+    if (!$data) { return $null }
+
+    # 1. Offline fast extraction from id_token (JWT) - no proxy or internet needed
+    if ($data.id_token) {
+        try {
+            $parts = $data.id_token.Split('.')
+            if ($parts.Length -ge 2) {
+                $payload = $parts[1].Replace('-', '+').Replace('_', '/')
+                $pad = '=' * ((4 - ($payload.Length % 4)) % 4)
+                $bytes = [System.Convert]::FromBase64String($payload + $pad)
+                $jwtStr = [System.Text.Encoding]::UTF8.GetString($bytes)
+                $jwt = $jwtStr | ConvertFrom-Json
+                if ($jwt.email) { return $jwt.email }
+            }
+        } catch {}
+    }
+
+    # 2. Directly in JSON if present
+    if ($data.email) { return $data.email }
+
+    # 3. Fallback to Google OAuth userinfo endpoint
     try {
-        $b64 = $tokenStr.Substring("go-keyring-base64:".Length)
-        $jsonBytes = [System.Convert]::FromBase64String($b64)
-        $jsonStr = [System.Text.Encoding]::UTF8.GetString($jsonBytes)
-        $data = $jsonStr | ConvertFrom-Json
-        $accessToken = $data.token.access_token
+        $accessToken = if ($data.token) { $data.token.access_token } else { $data.access_token }
         if ($accessToken) {
             $headers = @{ "Authorization" = "Bearer $accessToken" }
             $resp = Invoke-RestMethod -Uri "https://www.googleapis.com/oauth2/v3/userinfo" -Headers $headers -TimeoutSec 3 -ErrorAction SilentlyContinue
             if ($resp.email) { return $resp.email }
         }
     } catch {}
+
     return $null
 }
 
@@ -172,8 +218,9 @@ function Switch-Account($accountKey) {
         return
     }
     $token = Get-Content $tokenFile -Raw
-    $ok = [WinCred]::Write("gemini", "antigravity", $token.Trim())
-    if ($ok) {
+    $ok1 = [WinCred]::Write("gemini:antigravity", "antigravity", $token.Trim())
+    $ok2 = [WinCred]::Write("gemini", "antigravity", $token.Trim())
+    if ($ok1 -or $ok2) {
         Restart-Antigravity
         [System.Windows.Forms.MessageBox]::Show("Successfully switched to $accountKey!`n`nCreated by Rick Sanchez", "Antigravity Switcher", 0, 64) | Out-Null
     } else {
@@ -215,6 +262,7 @@ function Logout-And-Add {
         if ($res -eq [System.Windows.Forms.DialogResult]::Cancel) { return }
         if ($res -eq [System.Windows.Forms.DialogResult]::Yes) { Save-CurrentAccount }
     }
+    [WinCred]::Delete("gemini:antigravity") | Out-Null
     [WinCred]::Delete("gemini") | Out-Null
     Restart-Antigravity
     [System.Windows.Forms.MessageBox]::Show("Logged out from Antigravity!`n`nAntigravity is reopening. Sign in with your other Gmail, then run Switcher again to save it!", "Notice", 0, 64) | Out-Null
@@ -234,14 +282,14 @@ $OAuthClientId = -join ($CidCodes | ForEach-Object { [char]$_ })
 $OAuthClientSecret = -join ($SecCodes | ForEach-Object { [char]$_ })
 
 function Get-AntigravityUsage($tokenStr) {
-    if (-not $tokenStr -or -not $tokenStr.StartsWith("go-keyring-base64:")) { return $null }
+    if (-not $tokenStr) { return $null }
     try {
-        $rawB64 = $tokenStr.Substring("go-keyring-base64:".Length)
-        $bytes = [System.Convert]::FromBase64String($rawB64)
-        $json = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-        $token = $json.token
-        $accessToken = $token.access_token
-        $refreshToken = $token.refresh_token
+        $data = Parse-TokenData $tokenStr
+        if (-not $data) { return $null }
+
+        $tokenObj = if ($data.token) { $data.token } else { $data }
+        $accessToken = $tokenObj.access_token
+        $refreshToken = $tokenObj.refresh_token
 
         $headers = @{
             "Authorization" = "Bearer $accessToken"
@@ -352,13 +400,22 @@ if ($List) {
     $curr = Get-CurrentToken
     Write-Host "`n🚀 Antigravity Accounts (Windows)" -ForegroundColor Green
     Write-Host "👨‍💻 Creator: $AuthorName ($GitHubRepoUrl)`n" -ForegroundColor Gray
-    foreach ($prop in $manifest.PSObject.Properties) {
-        $active = ""
-        $tf = $prop.Value.token_file
-        if ($curr -and (Test-Path $tf) -and ((Get-Content $tf -Raw).Trim() -eq $curr.Trim())) {
-            $active = " [ACTIVE]"
+    $hasAccounts = $false
+    if ($manifest -and $manifest.PSObject) {
+        foreach ($prop in $manifest.PSObject.Properties) {
+            if ($prop.Value -and $prop.Value.token_file) {
+                $active = ""
+                $tf = $prop.Value.token_file
+                if ($curr -and (Test-Path $tf) -and ((Get-Content $tf -Raw).Trim() -eq $curr.Trim())) {
+                    $active = " [ACTIVE]"
+                }
+                Write-Host " • $($prop.Name)$active (Saved: $($prop.Value.saved_at))" -ForegroundColor Green
+                $hasAccounts = $true
+            }
         }
-        Write-Host " • $($prop.Name)$active (Saved: $($prop.Value.saved_at))"
+    }
+    if (-not $hasAccounts) {
+        Write-Host " (No accounts saved yet. Open GUI or run -Save to save current account)" -ForegroundColor Yellow
     }
     Write-Host ""
     exit
@@ -411,8 +468,12 @@ $listBox = New-Object System.Windows.Forms.ListBox
 $listBox.Location = New-Object System.Drawing.Point(20, 68)
 $listBox.Size = New-Object System.Drawing.Size(400, 160)
 $listBox.Font = New-Object System.Drawing.Font("Segoe UI", 10)
-foreach ($prop in $manifest.PSObject.Properties) {
-    $listBox.Items.Add($prop.Name) | Out-Null
+if ($manifest -and $manifest.PSObject) {
+    foreach ($prop in $manifest.PSObject.Properties) {
+        if ($prop.Value -and $prop.Value.token_file) {
+            $listBox.Items.Add($prop.Name) | Out-Null
+        }
+    }
 }
 if ($listBox.Items.Count -gt 0) { $listBox.SelectedIndex = 0 }
 $form.Controls.Add($listBox)
