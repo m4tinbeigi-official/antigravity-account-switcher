@@ -12,14 +12,20 @@ import json
 import base64
 import subprocess
 import urllib.request
+import urllib.parse
 import time
 import argparse
 import platform
+import shutil
 
 ACCOUNTS_DIR = os.path.expanduser('~/.gemini/accounts')
 MANIFEST_PATH = os.path.join(ACCOUNTS_DIR, 'manifest.json')
 GITHUB_REPO_URL = "https://github.com/m4tinbeigi-official/antigravity-account-switcher"
 AUTHOR_NAME = "Rick Sanchez (@m4tinbeigi-official)"
+
+IS_MACOS = platform.system() == 'Darwin'
+IS_LINUX = platform.system() == 'Linux'
+IS_WINDOWS = platform.system() == 'Windows'
 
 _CID_CODES = [49, 48, 55, 49, 48, 48, 54, 48, 54, 48, 53, 57, 49, 45, 116, 109, 104, 115, 115, 105, 110, 50, 104, 50, 49, 108, 99, 114, 101, 50, 51, 53, 118, 116, 111, 108, 111, 106, 104, 52, 103, 52, 48, 51, 101, 112, 46, 97, 112, 112, 115, 46, 103, 111, 111, 103, 108, 101, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109]
 _SEC_CODES = [71, 79, 67, 83, 80, 88, 45, 75, 53, 56, 70, 87, 82, 52, 56, 54, 76, 100, 76, 74, 49, 109, 76, 66, 56, 115, 88, 67, 52, 122, 54, 113, 68, 65, 102]
@@ -29,49 +35,217 @@ USAGE_DASHBOARD_PATH = os.path.join(ACCOUNTS_DIR, "usage_dashboard.html")
 
 def get_arch_label():
     m = platform.machine()
-    if m == 'arm64':
-        return "🍏 Apple Silicon (M1/M2/M3/M4)"
-    elif m in ('x86_64', 'i386'):
-        return "⚡️ Intel (x86_64)"
-    return f"💻 {m}"
+    sys_name = platform.system()
+    if IS_MACOS:
+        if m == 'arm64':
+            return "🍏 Apple Silicon (M1/M2/M3/M4)"
+        elif m in ('x86_64', 'i386'):
+            return "⚡️ Intel (x86_64)"
+        return f"🍏 macOS ({m})"
+    elif IS_LINUX:
+        return f"🐧 Linux ({m})"
+    elif IS_WINDOWS:
+        return f"🪟 Windows ({m})"
+    return f"💻 {sys_name} ({m})"
 
-def run_cmd(cmd):
+def run_cmd(cmd, input_text=None):
     """Run a shell command safely."""
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    res = subprocess.run(cmd, input=input_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return res.returncode, res.stdout.strip(), res.stderr.strip()
 
 def play_sound(sound_name="Hero"):
-    """Play a native macOS system sound non-blocking."""
-    sound_path = f"/System/Library/Sounds/{sound_name}.aiff"
-    if os.path.exists(sound_path):
-        subprocess.Popen(['afplay', sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    """Play a native system sound non-blocking."""
+    if IS_MACOS:
+        sound_path = f"/System/Library/Sounds/{sound_name}.aiff"
+        if os.path.exists(sound_path):
+            subprocess.Popen(['afplay', sound_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif IS_LINUX:
+        if shutil.which('canberra-gtk-play'):
+            subprocess.Popen(['canberra-gtk-play', '-i', 'complete'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif shutil.which('paplay'):
+            for sp in ['/usr/share/sounds/freedesktop/stereo/complete.oga', '/usr/share/sounds/gnome/default/alerts/glass.ogg']:
+                if os.path.exists(sp):
+                    subprocess.Popen(['paplay', sp], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    break
 
 def osascript(script):
-    """Execute an AppleScript snippet and return stdout."""
+    """Execute an AppleScript snippet and return stdout (macOS only)."""
+    if not IS_MACOS:
+        return ""
     code, out, err = run_cmd(['osascript', '-e', script])
     return out
 
 def notify(msg, title="Antigravity Switcher", sound=True):
-    """Display a native macOS banner notification."""
+    """Display a native desktop banner notification."""
     if sound:
         play_sound("Hero")
-    osascript(f'display notification "{msg}" with title "{title}"')
+    if IS_MACOS:
+        osascript(f'display notification "{msg}" with title "{title}"')
+    elif IS_LINUX:
+        if shutil.which('notify-send'):
+            subprocess.Popen(['notify-send', title, msg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def open_url(url_or_path):
+    """Open URL or file in system default browser / handler."""
+    if IS_MACOS:
+        run_cmd(['open', url_or_path])
+    elif IS_LINUX:
+        run_cmd(['xdg-open', url_or_path])
+    elif IS_WINDOWS:
+        start_fn = getattr(os, 'startfile', None)
+        if start_fn:
+            start_fn(url_or_path)
+        else:
+            run_cmd(['cmd', '/c', 'start', '', url_or_path])
 
 def open_github():
     """Open GitHub repository in default browser."""
-    run_cmd(['open', GITHUB_REPO_URL])
+    open_url(GITHUB_REPO_URL)
+
+def is_gui_available():
+    """Check if desktop graphical environment and dialog tool are available."""
+    if IS_MACOS:
+        return True
+    if IS_LINUX:
+        has_display = bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+        has_tool = bool(shutil.which('zenity') or shutil.which('kdialog'))
+        return has_display and has_tool
+    return False
+
+def ui_alert(title, message, is_critical=False):
+    """Display a message alert dialog or terminal message."""
+    if IS_MACOS:
+        icon_type = "as critical" if is_critical else "as informational"
+        osascript(f'tell application "System Events" to display alert "{title}" message "{message}" {icon_type}')
+    elif IS_LINUX and is_gui_available():
+        if shutil.which('zenity'):
+            mode = '--error' if is_critical else '--info'
+            run_cmd(['zenity', mode, f'--title={title}', f'--text={message}'])
+        elif shutil.which('kdialog'):
+            mode = '--error' if is_critical else '--msgbox'
+            run_cmd(['kdialog', mode, message, f'--title={title}'])
+    else:
+        prefix = "❌" if is_critical else "ℹ️"
+        print(f"\n{prefix} [{title}] {message}\n")
+
+def ui_input(title, prompt, default_val=""):
+    """Prompt user for single-line text input."""
+    if IS_MACOS:
+        return osascript(f'tell application "System Events" to text returned of (display dialog "{prompt}" default answer "{default_val}" with title "{title}")')
+    elif IS_LINUX and is_gui_available():
+        if shutil.which('zenity'):
+            _, out, _ = run_cmd(['zenity', '--entry', f'--title={title}', f'--text={prompt}', f'--entry-text={default_val}'])
+            return out
+        elif shutil.which('kdialog'):
+            _, out, _ = run_cmd(['kdialog', '--inputbox', prompt, default_val, f'--title={title}'])
+            return out
+    else:
+        try:
+            val = input(f"{prompt} [{default_val}]: ").strip()
+            return val if val else default_val
+        except (EOFError, KeyboardInterrupt):
+            return ""
+
+def ui_confirm(title, prompt, buttons, default_idx=1, icon="note"):
+    """Prompt user with multiple choice buttons."""
+    if IS_MACOS:
+        btn_str = '{' + ', '.join([f'"{b}"' for b in buttons]) + '}'
+        return osascript(f'tell application "System Events" to button returned of (display dialog "{prompt}" buttons {btn_str} default button {default_idx} with icon {icon})')
+    elif IS_LINUX and is_gui_available():
+        if shutil.which('zenity'):
+            if len(buttons) == 2:
+                code, _, _ = run_cmd(['zenity', '--question', f'--title={title}', f'--text={prompt}', f'--cancel-label={buttons[0]}', f'--ok-label={buttons[1]}'])
+                return buttons[1] if code == 0 else buttons[0]
+            elif len(buttons) >= 3:
+                cmd = ['zenity', '--list', f'--title={title}', f'--text={prompt}', '--column=Action'] + buttons
+                _, out, _ = run_cmd(cmd)
+                return out or buttons[0]
+        elif shutil.which('kdialog'):
+            code, _, _ = run_cmd(['kdialog', '--yesno', prompt, f'--title={title}'])
+            return buttons[-1] if code == 0 else buttons[0]
+    # Terminal fallback
+    print(f"\n{title}\n{'-' * len(title)}\n{prompt}\n")
+    for idx, b in enumerate(buttons, 1):
+        print(f"  {idx}) {b}")
+    try:
+        ans = input(f"\nChoose (default: {default_idx}): ").strip()
+        if not ans:
+            return buttons[default_idx - 1]
+        if ans.isdigit() and 1 <= int(ans) <= len(buttons):
+            return buttons[int(ans) - 1]
+        for b in buttons:
+            if ans.lower() == b.lower():
+                return b
+    except (EOFError, KeyboardInterrupt):
+        return ""
+    return buttons[default_idx - 1]
+
+def ui_choose_from_list(prompt, items, title="Antigravity Account Switcher"):
+    """Display interactive picker list (GUI or terminal)."""
+    if IS_MACOS:
+        items_applescript = '{' + ', '.join([f'"{it}"' for it in items]) + '}'
+        as_script = f'''
+        tell application "System Events"
+            activate
+            set chosen to choose from list {items_applescript} with prompt "{prompt}" default items {{"{items[0]}"}} OK button name "Select" cancel button name "Cancel"
+        end tell
+        if chosen is false then
+            return ""
+        else
+            return item 1 of chosen
+        end if
+        '''
+        return osascript(as_script)
+    elif IS_LINUX and is_gui_available():
+        if shutil.which('zenity'):
+            clean_items = [it for it in items if not it.startswith('───')]
+            cmd = ['zenity', '--list', f'--title={title}', f'--text={prompt}', '--column=Actions', '--height=480', '--width=440'] + clean_items
+            code, out, _ = run_cmd(cmd)
+            return out if code == 0 else ""
+        elif shutil.which('kdialog'):
+            cmd = ['kdialog', '--menu', prompt, f'--title={title}']
+            for idx, it in enumerate(items, 1):
+                if not it.startswith('───'):
+                    cmd.extend([str(idx), it])
+            code, out, _ = run_cmd(cmd)
+            if code == 0 and out.isdigit():
+                clean = [it for it in items if not it.startswith('───')]
+                c_idx = int(out) - 1
+                if 0 <= c_idx < len(clean):
+                    return clean[c_idx]
+            return ""
+    # Terminal interactive menu
+    print(f"\n=======================================================")
+    print(prompt)
+    print("=======================================================")
+    valid_map = {}
+    counter = 1
+    for it in items:
+        if it.startswith('───'):
+            print(f"  {it}")
+        else:
+            print(f"  [{counter}] {it}")
+            valid_map[counter] = it
+            counter += 1
+    print("  [0] Cancel / Exit")
+    print("=======================================================")
+    try:
+        choice = input("Enter choice [1]: ").strip()
+        if not choice:
+            choice = "1"
+        if choice == "0":
+            return ""
+        if choice.isdigit() and int(choice) in valid_map:
+            return valid_map[int(choice)]
+    except (EOFError, KeyboardInterrupt):
+        return ""
+    return ""
 
 def show_about():
     """Display Creator and GitHub info dialog."""
     play_sound("Glass")
-    as_script = f'''
-    tell application "System Events"
-        activate
-        set res to display dialog "🚀 Antigravity Account Switcher\\n\\n👨‍💻 Creator: {AUTHOR_NAME}\\n🌐 GitHub: {GITHUB_REPO_URL}\\n\\nIf you love this tool, please consider giving it a ⭐ Star on GitHub!" buttons {{"Close", "⭐ Open GitHub & Star"}} default button 2 with icon note
-        return button returned of res
-    end tell
-    '''
-    res = osascript(as_script)
+    msg = f"🚀 Antigravity Account Switcher\n\n👨‍💻 Creator: {AUTHOR_NAME}\n🌐 GitHub: {GITHUB_REPO_URL}\n\nIf you love this tool, please consider giving it a ⭐ Star on GitHub!"
+    res = ui_confirm("About Antigravity Switcher", msg, buttons=["Close", "⭐ Open GitHub & Star"], default_idx=2)
     if "Open GitHub" in res:
         open_github()
 
@@ -178,7 +352,7 @@ def fetch_antigravity_usage(token_str, known_email=None):
                 continue
             rem = quota.get('remainingFraction', 1.0)
             reset_time = quota.get('resetTime')
-            disp = m_info.get('displayName', m_id)
+            disp = m_info.get('displayName') or m_id
 
             if 'claude' in m_id.lower() or 'claude' in disp.lower():
                 cat = 'Claude 4.6 (Sonnet & Opus)'
@@ -186,7 +360,7 @@ def fetch_antigravity_usage(token_str, known_email=None):
                 cat = 'GPT-OSS 120B'
             elif 'gemini' in m_id.lower() or 'flash' in m_id.lower() or 'pro' in m_id.lower():
                 # Skip unlimited preview tabs from masking true quota
-                if 'preview' in m_id.lower() and rem == 1.0 and not reset_time:
+                if ('preview' in m_id.lower() or 'tab_' in m_id.lower()) and rem == 1.0 and not reset_time:
                     continue
                 cat = 'Gemini (Pro & Flash)'
             else:
@@ -200,7 +374,8 @@ def fetch_antigravity_usage(token_str, known_email=None):
                     pools_map[cat]['rem'] = rem
                     if reset_time:
                         pools_map[cat]['reset_time'] = reset_time
-            pools_map[cat]['models'].append(disp)
+            if disp not in pools_map[cat]['models']:
+                pools_map[cat]['models'].append(disp)
 
         ordered_cats = ['Gemini (Pro & Flash)', 'Claude 4.6 (Sonnet & Opus)', 'GPT-OSS 120B']
         for k in pools_map:
@@ -818,7 +993,7 @@ def open_claude_usage_window(target_key=None, force_refresh=False):
             pass
 
     if not all_data:
-        osascript('tell application "System Events" to display alert "Error" message "Could not retrieve Antigravity usage. Please check your internet connection or sign in to Antigravity first." as critical')
+        ui_alert("Error", "Could not retrieve Antigravity usage. Please check your internet connection or sign in to Antigravity first.", is_critical=True)
         return
 
     chosen_key = target_key if (target_key and target_key in all_data) else (active_key or list(all_data.keys())[0])
@@ -827,17 +1002,101 @@ def open_claude_usage_window(target_key=None, force_refresh=False):
     play_sound("Glass")
     
     chrome_path = "/Applications/Google Chrome.app"
-    if os.path.exists(chrome_path):
+    if IS_MACOS and os.path.exists(chrome_path):
         subprocess.Popen(['open', '-a', 'Google Chrome', f'file://{dashboard_path}'])
+    elif IS_LINUX and shutil.which('google-chrome'):
+        subprocess.Popen(['google-chrome', f'file://{dashboard_path}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
-        run_cmd(['open', dashboard_path])
+        open_url(dashboard_path)
 
 def get_current_keychain_token():
-    """Retrieve raw base64 Go-keyring string from macOS Keychain."""
-    code, out, _ = run_cmd(['security', 'find-generic-password', '-s', 'gemini', '-a', 'antigravity', '-w'])
-    if code == 0 and out.startswith('go-keyring-base64:'):
-        return out
+    """Retrieve raw base64 Go-keyring string from OS credential store."""
+    if IS_MACOS:
+        code, out, _ = run_cmd(['security', 'find-generic-password', '-s', 'gemini', '-a', 'antigravity', '-w'])
+        if code == 0 and out.startswith('go-keyring-base64:'):
+            return out
+        return None
+    elif IS_LINUX:
+        if shutil.which('secret-tool'):
+            code, out, _ = run_cmd(['secret-tool', 'lookup', 'service', 'gemini', 'username', 'antigravity'])
+            if code == 0 and out.startswith('go-keyring-base64:'):
+                return out
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            tok = keyring.get_password('gemini', 'antigravity')
+            if tok and tok.startswith('go-keyring-base64:'):
+                return tok
+        except Exception:
+            pass
+        return None
+    elif IS_WINDOWS:
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            tok = keyring.get_password('gemini', 'antigravity')
+            if tok and tok.startswith('go-keyring-base64:'):
+                return tok
+        except Exception:
+            pass
+        return None
     return None
+
+def set_keychain_token(token):
+    """Write token to native OS credential store."""
+    if IS_MACOS:
+        code, _, err = run_cmd(['security', 'add-generic-password', '-U', '-s', 'gemini', '-a', 'antigravity', '-w', token])
+        return code == 0, err
+    elif IS_LINUX:
+        if shutil.which('secret-tool'):
+            code, _, err = run_cmd(['secret-tool', 'store', "--label=Password for 'antigravity' on 'gemini'", 'service', 'gemini', 'username', 'antigravity'], input_text=token)
+            if code == 0:
+                return True, ""
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            keyring.set_password('gemini', 'antigravity', token)
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+    elif IS_WINDOWS:
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            keyring.set_password('gemini', 'antigravity', token)
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+    return False, "Unsupported OS credential backend"
+
+def delete_keychain_token():
+    """Delete token from native OS credential store."""
+    if IS_MACOS:
+        code, _, _ = run_cmd(['security', 'delete-generic-password', '-s', 'gemini', '-a', 'antigravity'])
+        return code == 0
+    elif IS_LINUX:
+        if shutil.which('secret-tool'):
+            code, _, _ = run_cmd(['secret-tool', 'clear', 'service', 'gemini', 'username', 'antigravity'])
+            if code == 0:
+                return True
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            keyring.delete_password('gemini', 'antigravity')
+            return True
+        except Exception:
+            pass
+        return False
+    elif IS_WINDOWS:
+        try:
+            import importlib
+            keyring = importlib.import_module('keyring')
+            keyring.delete_password('gemini', 'antigravity')
+            return True
+        except Exception:
+            pass
+        return False
+    return False
 
 def extract_email_from_token(token_str):
     """Query Google userinfo API to get email associated with access token."""
@@ -877,15 +1136,15 @@ def save_manifest(manifest):
         json.dump(manifest, f, indent=2)
 
 def save_current_account(custom_label=None):
-    """Save the currently active Keychain account to disk."""
+    """Save the currently active OS account to disk."""
     token = get_current_keychain_token()
     if not token:
-        osascript('tell application "System Events" to display alert "Error" message "No active Antigravity account found in macOS Keychain. Please sign in to Antigravity first." as critical')
+        ui_alert("Error", "No active Antigravity account found in system credential store. Please sign in to Antigravity first.", is_critical=True)
         return False
     
     email = extract_email_from_token(token)
     if not email:
-        email = osascript('tell application "System Events" to text returned of (display dialog "Enter email or name for this account:" default answer "my-account@gmail.com")')
+        email = ui_input("Save Account", "Enter email or name for this account:", default_val="my-account@gmail.com")
         if not email:
             return False
 
@@ -908,45 +1167,85 @@ def save_current_account(custom_label=None):
     return True
 
 def get_antigravity_app_path():
-    """Locate Antigravity application path on macOS."""
-    candidates = [
-        "/Applications/Antigravity.app",
-        "/Applications/Antigravity IDE.app",
-        os.path.expanduser("~/Applications/Antigravity.app"),
-        os.path.expanduser("~/Applications/Antigravity IDE.app")
-    ]
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-    return "/Applications/Antigravity.app"
+    """Locate Antigravity application path on current OS."""
+    if IS_MACOS:
+        candidates = [
+            "/Applications/Antigravity.app",
+            "/Applications/Antigravity IDE.app",
+            os.path.expanduser("~/Applications/Antigravity.app"),
+            os.path.expanduser("~/Applications/Antigravity IDE.app")
+        ]
+        for p in candidates:
+            if os.path.exists(p):
+                return p
+        return "/Applications/Antigravity.app"
+    elif IS_LINUX:
+        candidates = [
+            "/opt/antigravity/antigravity",
+            "/opt/antigravity/Antigravity-x64/antigravity",
+            "/opt/Antigravity/antigravity",
+            "/opt/antigravity-ide/antigravity-ide",
+            "/opt/antigravity-ide/Antigravity-IDE/antigravity-ide",
+            "/usr/local/bin/antigravity",
+            "/usr/bin/antigravity",
+            "/usr/local/bin/antigravity-ide",
+            "/usr/bin/antigravity-ide",
+            os.path.expanduser("~/.local/share/antigravity/antigravity")
+        ]
+        for p in candidates:
+            if os.path.exists(p) and os.access(p, os.X_OK):
+                return p
+        for cmd in ['antigravity', 'antigravity-ide']:
+            w = shutil.which(cmd)
+            if w:
+                return w
+        return "antigravity"
+    return "Antigravity"
 
 def restart_antigravity():
     """Cleanly terminate Antigravity and language server, then restart."""
-    app_path = get_antigravity_app_path()
-    run_cmd(['pkill', '-9', '-f', f"{app_path}/Contents/MacOS/Antigravity"])
-    run_cmd(['pkill', '-9', '-f', f"{app_path}/Contents/Resources/bin/language_server"])
-    time.sleep(1)
-    run_cmd(['open', app_path])
+    if IS_MACOS:
+        app_path = get_antigravity_app_path()
+        run_cmd(['pkill', '-9', '-f', f"{app_path}/Contents/MacOS/Antigravity"])
+        run_cmd(['pkill', '-9', '-f', "Antigravity IDE.app/Contents/MacOS"])
+        run_cmd(['pkill', '-9', '-f', "Contents/Resources/bin/language_server"])
+        time.sleep(1)
+        run_cmd(['open', app_path])
+    elif IS_LINUX:
+        run_cmd(['pkill', '-9', '-f', "language_server"])
+        run_cmd(['pkill', '-9', '-x', "antigravity"])
+        run_cmd(['pkill', '-9', '-x', "antigravity-ide"])
+        run_cmd(['pkill', '-9', '-f', "/opt/antigravity"])
+        run_cmd(['pkill', '-9', '-f', "/opt/Antigravity"])
+        time.sleep(1)
+        app_path = get_antigravity_app_path()
+        if shutil.which('gtk-launch'):
+            run_cmd(['gtk-launch', 'antigravity'])
+        else:
+            try:
+                subprocess.Popen([app_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            except Exception:
+                pass
 
 def switch_to_account(account_key):
-    """Switch active Antigravity account in macOS Keychain and restart app."""
+    """Switch active Antigravity account in credential store and restart app."""
     manifest = load_manifest()
     if account_key not in manifest:
-        osascript(f'tell application "System Events" to display alert "Error" message "Account \'{account_key}\' not found in saved list." as critical')
+        ui_alert("Error", f"Account '{account_key}' not found in saved list.", is_critical=True)
         return False
     
     token_file = manifest[account_key].get('token_file')
     if not token_file or not os.path.exists(token_file):
-        osascript(f'tell application "System Events" to display alert "Error" message "Token file for \'{account_key}\' is missing." as critical')
+        ui_alert("Error", f"Token file for '{account_key}' is missing.", is_critical=True)
         return False
         
     with open(token_file, 'r') as f:
         token = f.read().strip()
         
-    # Write to macOS Keychain
-    code, _, err = run_cmd(['security', 'add-generic-password', '-U', '-s', 'gemini', '-a', 'antigravity', '-w', token])
-    if code != 0:
-        osascript(f'tell application "System Events" to display alert "Error" message "Failed to update macOS Keychain: {err}" as critical')
+    # Write to OS credential store
+    ok, err = set_keychain_token(token)
+    if not ok:
+        ui_alert("Error", f"Failed to update credential store: {err}", is_critical=True)
         return False
 
     # Restart Antigravity
@@ -969,7 +1268,13 @@ def add_account_wizard():
             for v in manifest.values()
         )
         if not is_saved:
-            ans = osascript('tell application "System Events" to button returned of (display dialog "⚠️ Your currently active account is not saved yet.\\n\\nSave it first before switching to a new account?" buttons {"Save Active First", "Skip & Logout", "Cancel"} default button 1 with icon caution)')
+            ans = ui_confirm(
+                "Save Active Session",
+                "⚠️ Your currently active account is not saved yet.\n\nSave it first before switching to a new account?",
+                buttons=["Save Active First", "Skip & Logout", "Cancel"],
+                default_idx=1,
+                icon="caution"
+            )
             if ans == "Cancel" or not ans:
                 return
             if ans == "Save Active First":
@@ -977,18 +1282,30 @@ def add_account_wizard():
                     return
 
     # 2. Confirm logout & launch login
-    step1 = osascript('tell application "System Events" to button returned of (display dialog "🧙‍♂️ Add New Account Wizard\\n\\nStep 1: Antigravity will restart in login mode.\\nStep 2: Sign in with your new Gmail inside Antigravity.\\nStep 3: This wizard will automatically capture and save your new account!" buttons {"Cancel", "Start Login"} default button 2 with icon note)')
+    step1 = ui_confirm(
+        "Add New Account Wizard",
+        "🧙‍♂️ Add New Account Wizard\n\nStep 1: Antigravity will restart in login mode.\nStep 2: Sign in with your new Gmail inside Antigravity.\nStep 3: This wizard will automatically capture and save your new account!",
+        buttons=["Cancel", "Start Login"],
+        default_idx=2,
+        icon="note"
+    )
     if step1 != "Start Login":
         return
 
-    # Remove current token from Keychain
-    run_cmd(['security', 'delete-generic-password', '-s', 'gemini', '-a', 'antigravity'])
+    # Remove current token from keyring
+    delete_keychain_token()
     restart_antigravity()
     play_sound("Blow")
 
     # 3. Wait for user to complete login in Antigravity
     while True:
-        step2 = osascript('tell application "System Events" to button returned of (display dialog "⏳ Waiting for Login...\\n\\nPlease complete sign-in with your new Gmail inside Antigravity.\\n\\nWhen done, click \\"I Have Signed In\\" below:" buttons {"Cancel", "I Have Signed In"} default button 2 with icon note)')
+        step2 = ui_confirm(
+            "Waiting for Login",
+            "⏳ Waiting for Login...\n\nPlease complete sign-in with your new Gmail inside Antigravity.\n\nWhen done, click \"I Have Signed In\" below:",
+            buttons=["Cancel", "I Have Signed In"],
+            default_idx=2,
+            icon="note"
+        )
         if step2 != "I Have Signed In":
             return
 
@@ -996,18 +1313,30 @@ def add_account_wizard():
         if new_tok and new_tok != curr:
             email = extract_email_from_token(new_tok)
             def_label = email if email else f"Account {len(manifest) + 1}"
-            label = osascript(f'tell application "System Events" to text returned of (display dialog "🎉 Login detected!\\n\\nEnter a friendly name/label for this account:" default answer "{def_label}" buttons {{"Save Account"}} default button 1)')
+            label = ui_input("Save Account", "🎉 Login detected!\n\nEnter a friendly name/label for this account:", default_val=def_label)
             label = label.strip() if label else def_label
             save_current_account(custom_label=label)
             play_sound("Hero")
-            osascript(f'tell application "System Events" to display dialog "✅ Account \'{label}\' saved successfully!\\n\\nYou can now switch between accounts with 1 click." buttons {{"Done"}} default button 1 with icon note')
+            ui_alert("Success", f"✅ Account '{label}' saved successfully!\n\nYou can now switch between accounts with 1 click.")
             return
         elif new_tok and new_tok == curr:
-            retry = osascript('tell application "System Events" to button returned of (display dialog "⚠️ Same account detected.\\n\\nPlease log in with a different Gmail account in Antigravity." buttons {"Cancel", "Try Again"} default button 2 with icon caution)')
+            retry = ui_confirm(
+                "Same Account Detected",
+                "⚠️ Same account detected.\n\nPlease log in with a different Gmail account in Antigravity.",
+                buttons=["Cancel", "Try Again"],
+                default_idx=2,
+                icon="caution"
+            )
             if retry != "Try Again":
                 return
         else:
-            retry = osascript('tell application "System Events" to button returned of (display dialog "⚠️ No active login detected in Antigravity yet.\\n\\nPlease ensure you completed Google sign-in in the Antigravity window." buttons {"Cancel", "Try Again"} default button 2 with icon caution)')
+            retry = ui_confirm(
+                "No Login Detected",
+                "⚠️ No active login detected in Antigravity yet.\n\nPlease ensure you completed Google sign-in in the Antigravity window.",
+                buttons=["Cancel", "Try Again"],
+                default_idx=2,
+                icon="caution"
+            )
             if retry != "Try Again":
                 return
 
@@ -1063,21 +1392,10 @@ def main_menu():
     items.append("─────────────────────────────")
     items.append("⭐ About & Star on GitHub (by Rick Sanchez)")
         
-    items_applescript = '{' + ', '.join([f'"{it}"' for it in items]) + '}'
     arch_info = get_arch_label()
-    prompt = f"🚀 Antigravity Account Switcher\\n{arch_info} • by Rick Sanchez\\n🟢 Active Account: {curr_display}{usage_info_line}\\n\\nChoose an action:"
-    as_script = f'''
-    tell application "System Events"
-        activate
-        set chosen to choose from list {items_applescript} with prompt "{prompt}" default items {{"{items[0]}"}} OK button name "Select" cancel button name "Cancel"
-    end tell
-    if chosen is false then
-        return ""
-    else
-        return item 1 of chosen
-    end if
-    '''
-    choice = osascript(as_script)
+    prompt = f"🚀 Antigravity Account Switcher\n{arch_info} • by Rick Sanchez\n🟢 Active Account: {curr_display}{usage_info_line}\n\nChoose an action:"
+    
+    choice = ui_choose_from_list(prompt, items, title="Antigravity Account Switcher")
     if not choice or "──────" in choice:
         return
 
@@ -1086,7 +1404,7 @@ def main_menu():
         switch_to_account(acc)
     elif choice.startswith("🟢 [ACTIVE] "):
         play_sound("Tink")
-        osascript('tell application "System Events" to display dialog "This account is already active!" buttons {"OK"} default button 1 with icon note')
+        ui_alert("Active Account", "This account is already active!")
     elif choice == "📊 View Usage & Limits (Claude Style)":
         open_claude_usage_window(active_key)
     elif choice.startswith("💾 Save Current Account"):
@@ -1096,18 +1414,8 @@ def main_menu():
     elif choice.startswith("⭐ About"):
         show_about()
     elif choice.startswith("🗑 Remove a Saved Account"):
-        del_items = '{' + ', '.join([f'"{k}"' for k in manifest.keys()]) + '}'
-        del_choice = osascript(f'''
-        tell application "System Events"
-            activate
-            set delChosen to choose from list {del_items} with prompt "Select an account to remove from Switcher:" OK button name "Delete" cancel button name "Cancel"
-        end tell
-        if delChosen is false then
-            return ""
-        else
-            return item 1 of delChosen
-        end if
-        ''')
+        del_items = list(manifest.keys())
+        del_choice = ui_choose_from_list("Select an account to remove from Switcher:", del_items, title="Remove Account")
         if del_choice and del_choice in manifest:
             tf = manifest[del_choice].get('token_file')
             if tf and os.path.exists(tf):
@@ -1131,12 +1439,19 @@ if __name__ == '__main__':
     parser.add_argument('--logout', action='store_true', help="Log out from current account")
     parser.add_argument('--github', action='store_true', help="Open GitHub project page")
     parser.add_argument('--about', action='store_true', help="Display creator & project info")
+    parser.add_argument('--get-token', action='store_true', help="Print currently active token to stdout")
     args = parser.parse_args()
 
-    if args.usage:
+    if args.get_token:
+        curr = get_current_keychain_token()
+        if curr:
+            print(curr)
+            sys.exit(0)
+        sys.exit(1)
+    elif args.usage:
         curr = get_current_keychain_token()
         if not curr:
-            print("\n❌ No active Antigravity session found in Keychain. Please sign in first.\n")
+            print("\n❌ No active Antigravity session found in credential store. Please sign in first.\n")
             sys.exit(1)
         usage = fetch_antigravity_usage(curr)
         print_claude_cli_usage(usage)

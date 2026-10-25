@@ -15,11 +15,12 @@
 
 # 🚀 Antigravity Account Switcher
 
-**Super-fast, seamless 1-click Google account switcher for Google Antigravity on macOS (Intel & Apple Silicon) and Windows.**
+**Super-fast, seamless 1-click Google account switcher & live quotas dashboard for Google Antigravity on macOS, Linux, and Windows.**
 
 Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official)**
 
 [![macOS](https://img.shields.io/badge/Platform-macOS%20(Intel%20%7C%20Apple%20Silicon)-black?logo=apple&style=for-the-badge)](https://apple.com)
+[![Linux](https://img.shields.io/badge/Platform-Linux%20(Ubuntu%20%7C%20Debian%20%7C%20Fedora%20%7C%20Arch)-FCC624?logo=linux&logoColor=black&style=for-the-badge)](https://kernel.org)
 [![Windows](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&style=for-the-badge)](https://microsoft.com)
 [![Website](https://img.shields.io/badge/Website-GitHub%20Pages-0969da?style=for-the-badge)](https://m4tinbeigi-official.github.io/antigravity-account-switcher/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
@@ -55,21 +56,22 @@ Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official
 ## 🇬🇧 English
 
 ### Overview
-Switching between multiple Gmail / Google accounts on **Google Antigravity** can be frustrating because session tokens are securely protected inside **macOS Keychain** or **Windows Credential Manager** (`service: "gemini"`, `account: "antigravity"`).
+Switching between multiple Gmail / Google accounts on **Google Antigravity** can be frustrating because session tokens are securely protected inside **macOS Keychain**, **Linux Secret Service**, or **Windows Credential Manager** (`service: "gemini"`, `account: "antigravity"`).
 
-**Antigravity Account Switcher** is an ultra-fast, native cross-platform utility (GUI & CLI) that communicates directly with native credential managers to store, manage, and switch your Google Antigravity identities in under 3 seconds.
+**Antigravity Account Switcher** is an ultra-fast, native cross-platform utility (GUI & CLI) that communicates directly with native credential managers to store, manage, and switch your Google Antigravity identities in under 3 seconds. Fully compatible with **Antigravity 2.26+** (Gemini 3.5, Gemini 3.8 tiered, Claude 4.6, GPT-OSS 120B).
 
 ### ✨ Features
 - ⚡️ **Instant 1-Click Switching**: Seamlessly swap between work, personal, or dev accounts.
+- 🐧 **Full Linux Desktop & CLI Support**: Direct integration with FreeDesktop Secret Service (`secret-tool` / libsecret), `.desktop` app launcher, and terminal CLI.
 - 🖥 **macOS Menu Bar Applet**: Sleek, compact 1-click status bar item next to system clock for instant switching and quota viewing.
-- 🧩 **Antigravity IDE Status Bar Integration**: QuickPick account switcher and limit viewer built right into the code editor's status bar.
+- 🧩 **Antigravity IDE Status Bar Integration**: QuickPick account switcher and limit viewer built right into the code editor's status bar across macOS, Linux, and Windows.
 - 📊 **Dual Quota Monitoring (Daily & Weekly)**: Separate live tracking for Gemini daily rolling limits & Claude 4.6 / GPT-OSS weekly limits with live ticking countdowns.
 - 🧙‍♂️ **Guided Add Account Wizard**: Interactive step-by-step sign-in flow that detects and saves new accounts automatically without CLI commands.
 - 🚀 **Parallel Sub-Second Engine**: Parallel thread querying with smart local caching for instant dashboard opening.
 - 🍏 **Universal macOS Support**: Native Universal 2 binary for **Apple Silicon (M1/M2/M3/M4)** and **Intel (x86_64)** with tactile sound effects and high-res icon.
 - 🪟 **Native Windows 10 & 11 Support**: Direct integration with Windows Credential Manager (`advapi32.dll`) via PowerShell and WinForms UI.
 - 🔒 **Zero Data Transmission**: Everything runs 100% locally on your machine. Tokens never leave your local credential store.
-- 💻 **Spotlight & CLI Integration**: Run from `/Applications`, Desktop, Spotlight (`Cmd+Space`), or terminal via `agy-switch`.
+- 💻 **Spotlight, App Menus & CLI**: Run from `/Applications`, Linux desktop launcher, Desktop, Spotlight (`Cmd+Space`), or terminal via `agy-switch`.
 - 🔄 **Safe Auto-Restart**: Cleanly terminates background language servers and restarts Antigravity with the selected account applied.
 
 ---
@@ -83,6 +85,15 @@ cd antigravity-account-switcher
 ./install.sh
 ```
 *Creates `AntigravitySwitcher.app` in `/Applications` and `~/Desktop`, and registers `agy-switch` in your terminal PATH.*
+
+#### 🐧 Linux (Ubuntu, Debian, Fedora, Arch)
+```bash
+git clone https://github.com/m4tinbeigi-official/antigravity-account-switcher.git
+cd antigravity-account-switcher
+./install.sh
+```
+*Installs `agy-switch` CLI, registers `.desktop` application menu launcher, and activates Antigravity IDE Status Bar Extension.*
+> **Prerequisites:** Ensure `libsecret-tools` (Ubuntu/Debian) or `libsecret` (Fedora/Arch) is installed. Install `zenity` if you want desktop popup dialogs.
 
 #### 🪟 Windows (10 & 11)
 ```powershell
@@ -98,11 +109,12 @@ cd antigravity-account-switcher
 
 #### GUI Mode
 - **macOS**: Open **`AntigravitySwitcher.app`** from Applications, Desktop, or Spotlight (`Cmd+Space`). Select **`📊 View Usage & Limits (Claude Style)`**.
+- **Linux**: Open **`Antigravity Account Switcher`** from your desktop app menu or run `antigravity-switcher`.
 - **Windows**: Double-click **`AntigravitySwitcher.bat`** on your Desktop.
 
 #### CLI Mode
 ```bash
-# macOS terminal:
+# macOS & Linux terminal:
 agy-switch --usage            # 📊 Display live quota in Claude Code style
 agy-switch --usage-gui        # 🖥 Open standalone Claude usage desktop window
 agy-switch --list             # List saved accounts
@@ -129,14 +141,15 @@ powershell -File .\switcher_windows.ps1 -About
 اگر این ابزار براتون کاربردی بود، لطفاً با **[دادن ستاره (Star ⭐) در گیت‌هاب](https://github.com/m4tinbeigi-official/antigravity-account-switcher)** از این پروژه حمایت کنید!
 
 ### معرفی
-تغییر اکانت‌های گوگل در نرم‌افزار **Google Antigravity** به دلیل ذخیره‌سازی رمزنگاری‌شده در **macOS Keychain** و **Windows Credential Manager** پیچیده است.
+تغییر اکانت‌های گوگل در نرم‌افزار **Google Antigravity** به دلیل ذخیره‌سازی رمزنگاری‌شده در **macOS Keychain**، **سرویس Secret Service لینوکس** و **Windows Credential Manager** پیچیده است.
 
-**Antigravity Account Switcher** ابزاری کاملاً نیتیو و سبک برای **مک و ویندوز** است که مستقیماً با مدیریت اعتبار سیستم‌عامل ارتباط برقرار کرده و امکان جابه‌جایی سریع بین بی‌شمار اکانت گوگل را تنها با **یک کلیک** فراهم می‌سازد.
+**Antigravity Account Switcher** ابزاری کاملاً نیتیو و سبک برای **مک، لینوکس و ویندوز** است که مستقیماً با مدیریت اعتبار سیستم‌عامل ارتباط برقرار کرده و امکان جابه‌جایی سریع بین بی‌شمار اکانت گوگل را تنها با **یک کلیک** فراهم می‌سازد. کاملاً سازگار با آخرین نسخه‌های آنتی‌گراویتی (Antigravity 2.26+) و مدل‌های جدید Gemini 3.5، Gemini 3.8، Claude 4.6 و GPT-OSS 120B.
 
 ### 🌟 ویژگی‌های کلیدی
 - ⚡️ **سوئیچ زیر ۳ ثانیه**: جابه‌جایی آنی بین اکانت‌های کاری و شخصی بدون نیاز به لاگین مجدد.
+- 🐧 **پشتیبانی کامل از لینوکس**: یکپارچه‌سازی با FreeDesktop Secret Service (`secret-tool`)، لانچر دسکتاپ و ابزار خط فرمان.
 - 🖥 **آیکون نیتیو Menu Bar مک**: آیکون اختصاصی و کم‌حجم در نوار بالای مک کنار ساعت برای دسترسی سریع به تمام امکانات.
-- 🧩 **اکستنشن ادیتور Antigravity IDE**: دسترسی مستقیم از نوار وضعیت پایین ادیتور (Status Bar).
+- 🧩 **اکستنشن ادیتور Antigravity IDE**: دسترسی مستقیم از نوار وضعیت پایین ادیتور (Status Bar) در تمامی سیستم‌عامل‌ها.
 - 📊 **تفکیک سهمیه روزانه و هفتگی**: رهگیری مجزای سهمیه روزانه مدل‌های Gemini و سهمیه هفتگی مدل‌های Claude 4.6 و GPT-OSS با تایمر معکوس زنده.
 - 🧙‍♂️ **ویزارد هوشمند افزودن اکانت**: هدایت مرحله‌به‌مرحله برای ورود به جیمیل جدید و ذخیره خودکار بدون تایپ دستور در ترمینال.
 - 🚀 **سرعت فوق‌العاده با کش محلی**: بارگذاری موازی و کش هوشمند برای باز شدن آنی در کسری از ثانیه.

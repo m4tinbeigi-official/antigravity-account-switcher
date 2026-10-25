@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Antigravity Account Switcher
+GenericName=Google Antigravity Account Switcher
+Comment=Fast 1-click Google account switcher & live quotas dashboard for Google Antigravity
+Exec=agy-switch
+Icon=antigravity
+Terminal=false
+Categories=Development;Utility;
+Keywords=antigravity;gemini;google;switcher;accounts;quota;
+StartupNotify=true
