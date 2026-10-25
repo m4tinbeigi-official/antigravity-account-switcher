@@ -42,11 +42,25 @@ function loadManifest() {
 async function getActiveAccountInfo() {
     const manifest = loadManifest();
     let currToken = null;
+    const bin = getAgySwitchBin();
 
     if (process.platform === 'darwin') {
         const res = await runCmd('security find-generic-password -s gemini -a antigravity -w 2>/dev/null');
         if (res.code === 0 && res.stdout.startsWith('go-keyring-base64:')) {
             currToken = res.stdout;
+        }
+    } else if (process.platform === 'linux') {
+        const res = await runCmd('secret-tool lookup service gemini username antigravity 2>/dev/null');
+        if (res.code === 0 && res.stdout.startsWith('go-keyring-base64:')) {
+            currToken = res.stdout;
+        }
+    }
+
+    // Universal fallback: query CLI directly
+    if (!currToken) {
+        const pyRes = await runCmd(`"${bin}" --get-token 2>/dev/null`);
+        if (pyRes.code === 0 && pyRes.stdout.startsWith('go-keyring-base64:')) {
+            currToken = pyRes.stdout;
         }
     }
 
@@ -174,7 +188,13 @@ function activate(context) {
                 updateStatusBar();
             }
         } else if (selected.action === 'app') {
-            runCmd('open /Applications/AntigravitySwitcher.app 2>/dev/null || agy-switch');
+            if (process.platform === 'darwin') {
+                runCmd('open /Applications/AntigravitySwitcher.app 2>/dev/null || agy-switch');
+            } else if (process.platform === 'win32') {
+                runCmd('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%USERPROFILE%\\.gemini\\switcher_windows.ps1"');
+            } else {
+                runCmd('which antigravity-switcher >/dev/null 2>&1 && antigravity-switcher || agy-switch');
+            }
         }
     });
 
