@@ -373,7 +373,7 @@
         </a>
         <h1>سوئیچ آنی بین اکانت‌های گوگل<br>در Google Antigravity</h1>
         <p class="lead">
-          ابزار کاملاً نیتیو، امن و خودکار برای جابه‌جایی سریع و بی‌دردسر بین اکانت‌های کاری و شخصی در مک (Apple Silicon & Intel) و ویندوز.
+          ابزار کاملاً نیتیو، امن و خودکار برای جابه‌جایی سریع و بی‌دردسر بین اکانت‌های کاری و شخصی در مک (Apple Silicon & Intel)، لینوکس و ویندوز.
         </p>
       </section>
 
@@ -385,6 +385,9 @@
         <div class="tabs-header">
           <button class="tab-btn active" onclick="switchTab('mac')">
             <span>🍏</span> macOS (سیلیکون و اینتل)
+          </button>
+          <button class="tab-btn" onclick="switchTab('linux')">
+            <span>🐧</span> Linux (اوبونتو، دبیان، فدورا، آرچ)
           </button>
           <button class="tab-btn" onclick="switchTab('windows')">
             <span>🪟</span> Windows (۱۰ و ۱۱)
@@ -400,6 +403,18 @@
           </div>
           <p style="color: var(--text-muted); font-size: 0.95rem;">
             ✓ اپلیکیشن <b>AntigravitySwitcher.app</b> روی دسکتاپ و در Applications نصب شده و از طریق Spotlight (زدن Cmd+Space) یا دستور ترمینال <code>agy-switch</code> قابل استفاده است.
+          </p>
+        </div>
+
+        <!-- Linux Tab -->
+        <div id="tab-linux" class="tab-pane">
+          <h3 style="margin-bottom: 12px;">نصب خودکار در لینوکس با یک دستور:</h3>
+          <div class="code-box">
+            <button class="copy-btn" onclick="copyCode(this)">کپی</button>
+            <code>git clone https://github.com/m4tinbeigi-official/antigravity-account-switcher.git && cd antigravity-account-switcher && ./install.sh</code>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.95rem;">
+            ✓ شورت‌کات <code>agy-switch</code> و لانچر دسکتاپ <b>Antigravity Switcher</b> در منوی برنامه‌ها ثبت شده و مستقیماً با سرویس رمزنگاری Secret Service لینوکس ارتباط برقرار می‌کند.
           </p>
         </div>
 
@@ -425,12 +440,12 @@
         <div class="feature-card">
           <div class="feature-icon">🔒</div>
           <h3>امنیت ۱۰۰٪ آفلاین</h3>
-          <p>اطلاعات هرگز به سروری ارسال نمی‌شوند. توکن‌ها مستقیماً داخل macOS Keychain و Windows Credential Manager سیستم خودتان نگهداری می‌شوند.</p>
+          <p>اطلاعات هرگز به سروری ارسال نمی‌شوند. توکن‌ها مستقیماً داخل macOS Keychain، FreeDesktop Secret Service در لینوکس و Windows Credential Manager نگهداری می‌شوند.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon">🚀</div>
-          <h3>پشتیبانی دوال نیتیو</h3>
-          <p>نسخه مک به صورت Universal 2 (پشتیبانی همزمان چیپ‌های سری M اپل و پردازنده‌های اینتل) و نسخه ویندوز به صورت نیتیو اجرا می‌شوند.</p>
+          <h3>پشتیبانی چندسکویی نیتیو</h3>
+          <p>نسخه مک به صورت Universal 2، نسخه لینوکس سازگار با تمامی توزیع‌ها و نسخه ویندوز بدون وابستگی خارجی اجرا می‌شوند.</p>
         </div>
       </section>
 
@@ -472,8 +487,11 @@
       if (os === 'mac') {
         document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
         document.getElementById('tab-mac').classList.add('active');
-      } else {
+      } else if (os === 'linux') {
         document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('tab-linux').classList.add('active');
+      } else {
+        document.querySelector('.tab-btn:nth-child(3)').classList.add('active');
         document.getElementById('tab-windows').classList.add('active');
       }
     }

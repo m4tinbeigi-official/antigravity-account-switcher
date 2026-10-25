@@ -55,6 +55,8 @@ Developed with ❤️ by **[Rick Sanchez](https://github.com/m4tinbeigi-official
 
 ## 🇬🇧 English
 
+> 🚀 **v1.2.0 Update**: Added official Linux desktop & CLI support (FreeDesktop Secret Service integration via `secret-tool`, `.desktop` application menu launcher, and cross-platform IDE extension), plus full compatibility with **Antigravity 2.26+** (Gemini 3.5 Flash Lite, Gemini 3.8 Tiered, Gemini 3.1 Flash Image, Claude 4.6 Sonnet/Opus Thinking, and GPT-OSS 120B).
+
 ### Overview
 Switching between multiple Gmail / Google accounts on **Google Antigravity** can be frustrating because session tokens are securely protected inside **macOS Keychain**, **Linux Secret Service**, or **Windows Credential Manager** (`service: "gemini"`, `account: "antigravity"`).
 
@@ -135,6 +137,8 @@ powershell -File .\switcher_windows.ps1 -About
 ---
 
 ## 🇮🇷 فارسی
+
+> 🚀 **بروزرسانی نسخه ۱.۲.۰**: اضافه شدن پشتیبانی رسمی از لینوکس (اتصال نیتیو به FreeDesktop Secret Service با `secret-tool`، لانچر دسکتاپ و ابزار ترمینال) به همراه سازگاری کامل با آخرین نسخه آنتی‌گراویتی (**Antigravity 2.26+**) و مدل‌های جدید Gemini 3.5، Gemini 3.8 Tiered، Claude 4.6 و GPT-OSS 120B.
 
 ### درباره سازنده
 این ابزار توسط **[ریک سانچز (Rick Sanchez)](https://github.com/m4tinbeigi-official)** برای جامعه توسعه‌دهندگان و کاربران Google Antigravity به صورت کاملاً آزاد و متن‌باز (Open Source) توسعه داده شده است.
